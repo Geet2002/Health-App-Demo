@@ -48,7 +48,7 @@ app.post('/api/auth/signup', async (req, res) => {
     );
 
     const token = jwt.sign({ id: result.insertId, username }, JWT_SECRET, { expiresIn: '7d' });
-    res.cookie('token', token, { httpOnly: true, secure: false, maxAge: 7 * 24 * 3600000 });
+    res.cookie('token', token, { httpOnly: true, secure: false, maxAge: 3600000 });
     res.json({ message: 'Signup successful', user: { id: result.insertId, username } });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Username already exists' });
@@ -132,15 +132,15 @@ app.get('/api/posts/:id', async (req, res) => {
       FROM posts p LEFT JOIN users u ON p.author_id = u.id 
       WHERE p.id = ?
     `, [id]);
-    
+
     if (posts.length === 0) return res.status(404).json({ error: 'Not found' });
-    
+
     const [comments] = await pool.query(`
       SELECT c.*, u.username as author_name 
       FROM comments c LEFT JOIN users u ON c.author_id = u.id 
       WHERE c.post_id = ? ORDER BY c.created_at ASC
     `, [id]);
-    
+
     res.json({ ...posts[0], comments });
   } catch (error) {
     console.error(error);
@@ -154,7 +154,7 @@ app.post('/api/posts/:id/comments', authenticate, async (req, res) => {
     const { id } = req.params;
     const { content } = req.body;
     const author_id = req.user.id;
-    
+
     const [result] = await pool.query(
       `INSERT INTO comments (post_id, author_id, content) VALUES (?, ?, ?)`,
       [id, author_id, content]
@@ -172,7 +172,7 @@ app.post('/api/communities', authenticate, async (req, res) => {
   try {
     const { name, description, is_private } = req.body;
     const author_id = req.user.id;
-    
+
     // Create community
     const [result] = await pool.query(
       `INSERT INTO communities (name, description, is_private, created_by) VALUES (?, ?, ?, ?)`,
@@ -220,16 +220,16 @@ app.get('/api/communities/:id', async (req, res) => {
       FROM communities c LEFT JOIN users u ON c.created_by = u.id 
       WHERE c.id = ?
     `, [id]);
-    
+
     if (comms.length === 0) return res.status(404).json({ error: 'Not found' });
-    
+
     const [members] = await pool.query(`
       SELECT cm.user_id, cm.role, cm.status, u.username
       FROM community_members cm
       JOIN users u ON cm.user_id = u.id
       WHERE cm.community_id = ?
     `, [id]);
-    
+
     res.json({ ...comms[0], members });
   } catch (error) {
     console.error(error);
@@ -241,10 +241,10 @@ app.post('/api/communities/:id/join', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const user_id = req.user.id;
-    
+
     const [comms] = await pool.query(`SELECT * FROM communities WHERE id = ?`, [id]);
     if (comms.length === 0) return res.status(404).json({ error: 'Community not found' });
-    
+
     const isPrivate = comms[0].is_private;
     const status = isPrivate ? 'pending' : 'approved';
 
@@ -288,13 +288,13 @@ app.post('/api/communities/:id/requests/:userId', authenticate, async (req, res)
 
     if (action === 'approve') {
       await pool.query(`UPDATE community_members SET status = 'approved' WHERE community_id = ? AND user_id = ?`, [id, userId]);
-      
+
       const [comms] = await pool.query(`SELECT name FROM communities WHERE id = ?`, [id]);
       await pool.query(
         `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'request_approved', ?, ?)`,
         [userId, `Your request to join ${comms[0].name} was approved!`, id]
       );
-      
+
       res.json({ message: 'Request approved' });
     } else {
       await pool.query(`DELETE FROM community_members WHERE community_id = ? AND user_id = ?`, [id, userId]);
@@ -318,7 +318,7 @@ app.post('/api/communities/:id/admin', authenticate, async (req, res) => {
     if (adminCheck.length === 0 || adminCheck[0].role !== 'admin') return res.status(403).json({ error: 'Only admins can perform this action' });
 
     await pool.query(`UPDATE community_members SET role = 'admin' WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, targetUserId]);
-    
+
     const [comms] = await pool.query(`SELECT name FROM communities WHERE id = ?`, [id]);
     await pool.query(
       `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'made_admin', ?, ?)`,
@@ -361,13 +361,13 @@ app.delete('/api/posts/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const [posts] = await pool.query('SELECT author_id FROM posts WHERE id = ?', [id]);
-    if (posts.length === 0) return res.status(404).json({error: 'Not found'});
-    if (posts[0].author_id !== req.user.id) return res.status(403).json({error: 'Unauthorized'});
-    
+    if (posts.length === 0) return res.status(404).json({ error: 'Not found' });
+    if (posts[0].author_id !== req.user.id) return res.status(403).json({ error: 'Unauthorized' });
+
     await pool.query('DELETE FROM posts WHERE id = ?', [id]);
     res.json({ message: 'Post deleted' });
-  } catch(err) {
-    res.status(500).json({error: 'Server error'});
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -375,13 +375,13 @@ app.delete('/api/comments/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const [comments] = await pool.query('SELECT author_id FROM comments WHERE id = ?', [id]);
-    if (comments.length === 0) return res.status(404).json({error: 'Not found'});
-    if (comments[0].author_id !== req.user.id) return res.status(403).json({error: 'Unauthorized'});
-    
+    if (comments.length === 0) return res.status(404).json({ error: 'Not found' });
+    if (comments[0].author_id !== req.user.id) return res.status(403).json({ error: 'Unauthorized' });
+
     await pool.query('DELETE FROM comments WHERE id = ?', [id]);
     res.json({ message: 'Comment deleted' });
-  } catch(err) {
-    res.status(500).json({error: 'Server error'});
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -389,13 +389,13 @@ app.delete('/api/communities/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const [comms] = await pool.query('SELECT created_by FROM communities WHERE id = ?', [id]);
-    if (comms.length === 0) return res.status(404).json({error: 'Not found'});
-    if (comms[0].created_by !== req.user.id) return res.status(403).json({error: 'Unauthorized'});
-    
+    if (comms.length === 0) return res.status(404).json({ error: 'Not found' });
+    if (comms[0].created_by !== req.user.id) return res.status(403).json({ error: 'Unauthorized' });
+
     await pool.query('DELETE FROM communities WHERE id = ?', [id]);
     res.json({ message: 'Community deleted' });
-  } catch(err) {
-    res.status(500).json({error: 'Server error'});
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
