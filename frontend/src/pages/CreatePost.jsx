@@ -30,6 +30,16 @@ function LocationMarker({ position, setPosition }) {
   );
 }
 
+function RecenterMap({ position }) {
+  const map = useMapEvents({});
+  useEffect(() => {
+    if (position && map) {
+      map.setView(position, 15, { animate: true });
+    }
+  }, [position, map]);
+  return null;
+}
+
 export default function CreatePost() {
   const navigate = useNavigate();
   const loc = useLocation();
@@ -41,14 +51,21 @@ export default function CreatePost() {
   const [locationText, setLocationText] = useState('');
   const [position, setPosition] = useState(null);
   const [showMap, setShowMap] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeError, setGeocodeError] = useState('');
   const [loading, setLoading] = useState(false);
   
   // Auto-focus location if it's an emergency
   useEffect(() => {
     if (type === 'emergency' && navigator.geolocation && !position) {
       navigator.geolocation.getCurrentPosition((pos) => {
-        setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setPosition(p);
         setShowMap(true);
+        // Auto-fill location text if empty with approximate coords
+        if (!locationText) {
+          setLocationText(`${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`);
+        }
       }, () => {
         // user denied or error
       });
@@ -126,7 +143,7 @@ export default function CreatePost() {
                 required
                 type="text"
                 placeholder={type === 'emergency' ? "e.g., Car accident near highway, need immediate hospital suggestions" : "e.g., Looking for a good pediatrician in downtown"}
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-shadow transition-colors bg-gray-50 focus:bg-white"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-colors bg-gray-50 focus:bg-white"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
@@ -141,7 +158,7 @@ export default function CreatePost() {
                 required
                 rows={5}
                 placeholder="Provide more context..."
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-shadow transition-colors bg-gray-50 focus:bg-white resize-none"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-colors bg-gray-50 focus:bg-white resize-none"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
               />
@@ -150,19 +167,51 @@ export default function CreatePost() {
             {type === 'emergency' && (
               <div className="animate-fade-in space-y-3">
                 <div>
-                  <label htmlFor="locationText" className="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
+                  <label htmlFor="locationText" className="flex text-sm font-medium text-gray-700 mb-1 items-center justify-between">
                     <span className="flex items-center">
                       <MapPin className="w-4 h-4 mr-1 text-emergency-500" />
                       Location Description
                     </span>
-                    <button 
-                      type="button" 
-                      onClick={() => setShowMap(!showMap)}
-                      className="text-xs text-primary-600 hover:text-primary-700 flex items-center bg-primary-50 px-2 py-1 rounded-md"
-                    >
-                      <MapIcon className="w-3 h-3 mr-1" />
-                      {showMap ? 'Hide Map' : 'Pin Exact Location on Map'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        type="button" 
+                        onClick={() => setShowMap(!showMap)}
+                        className="text-xs text-primary-600 hover:text-primary-700 flex items-center bg-primary-50 px-2 py-1 rounded-md"
+                      >
+                        <MapIcon className="w-3 h-3 mr-1" />
+                        {showMap ? 'Hide Map' : 'Pin Exact Location on Map'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!locationText) return setGeocodeError('Enter a location to find');
+                          setGeocodeError('');
+                          setGeocoding(true);
+                          try {
+                            const q = encodeURIComponent(locationText);
+                            // Use OpenStreetMap Nominatim for free geocoding
+                            const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
+                            const data = await res.json();
+                            if (!data || data.length === 0) {
+                              setGeocodeError('Location not found');
+                            } else {
+                              const lat = parseFloat(data[0].lat);
+                              const lon = parseFloat(data[0].lon);
+                              const p = { lat, lng: lon };
+                              setPosition(p);
+                              setShowMap(true);
+                            }
+                          } catch (err) {
+                            setGeocodeError('Failed to find location');
+                          } finally {
+                            setGeocoding(false);
+                          }
+                        }}
+                        className="text-xs text-primary-600 hover:text-primary-700 flex items-center bg-primary-50 px-2 py-1 rounded-md"
+                      >
+                        {geocoding ? 'Finding...' : 'Find on map'}
+                      </button>
+                    </div>
                   </label>
                   <input
                     id="locationText"
@@ -173,6 +222,7 @@ export default function CreatePost() {
                     value={locationText}
                     onChange={(e) => setLocationText(e.target.value)}
                   />
+                  {geocodeError && <p className="mt-2 text-xs text-red-600">{geocodeError}</p>}
                 </div>
                 
                 {showMap && (
@@ -185,6 +235,7 @@ export default function CreatePost() {
                     >
                       <VectorTileLayer />
                       <LocationMarker position={position} setPosition={setPosition} />
+                      <RecenterMap position={position} />
                     </MapContainer>
                     {!position && (
                        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-[1000] bg-white px-3 py-1.5 rounded-full shadow-md text-xs font-bold text-gray-700 pointer-events-none">
