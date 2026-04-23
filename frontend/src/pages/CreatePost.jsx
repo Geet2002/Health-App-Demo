@@ -1,9 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { AlertCircle, FileText, MapPin, Send } from 'lucide-react';
+import { AlertCircle, FileText, MapPin, Send, Map as MapIcon } from 'lucide-react';
+import { MapContainer, Marker, useMapEvents } from 'react-leaflet';
+import VectorTileLayer from '../components/VectorTileLayer';
+import L from 'leaflet';
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+let DefaultIcon = L.icon({
+    iconUrl: icon,
+    shadowUrl: iconShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+
+function LocationMarker({ position, setPosition }) {
+  useMapEvents({
+    click(e) {
+      setPosition(e.latlng);
+    },
+  });
+
+  return position === null ? null : (
+    <Marker position={position}></Marker>
+  );
+}
 
 export default function CreatePost() {
   const navigate = useNavigate();
@@ -13,31 +38,39 @@ export default function CreatePost() {
   const [type, setType] = useState(queryParams.get('type') || 'query');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [location, setLocation] = useState('');
+  const [locationText, setLocationText] = useState('');
+  const [position, setPosition] = useState(null);
+  const [showMap, setShowMap] = useState(false);
   const [loading, setLoading] = useState(false);
   
   // Auto-focus location if it's an emergency
   useEffect(() => {
-    if (type === 'emergency' && navigator.geolocation && !location) {
+    if (type === 'emergency' && navigator.geolocation && !position) {
       navigator.geolocation.getCurrentPosition((pos) => {
-        // Just mocking reverse geocoding for UI purposes
-        setLocation(`${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+        setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setShowMap(true);
       }, () => {
         // user denied or error
       });
     }
-  }, [type, location]);
+  }, [type, position]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
       const communityId = queryParams.get('communityId');
+      
+      let finalLocation = null;
+      if (type === 'emergency') {
+         finalLocation = position ? `${locationText}||${position.lat},${position.lng}` : locationText;
+      }
+
       await axios.post(`${API_URL}/posts`, {
         title,
         content,
         type,
-        location: type === 'emergency' ? location : null,
+        location: finalLocation,
         community_id: communityId ? parseInt(communityId) : null
       });
       navigate('/');
@@ -115,20 +148,51 @@ export default function CreatePost() {
             </div>
 
             {type === 'emergency' && (
-              <div className="animate-fade-in">
-                <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                  <MapPin className="w-4 h-4 mr-1 text-emergency-500" />
-                  Exact Location
-                </label>
-                <input
-                  id="location"
-                  required
-                  type="text"
-                  placeholder="e.g., 5th Avenue crossing Main Street"
-                  className="w-full px-4 py-3 rounded-xl border border-emergency-300 focus:ring-2 focus:border-transparent focus:ring-emergency-500 transition-shadow bg-emergency-50 focus:bg-white"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                />
+              <div className="animate-fade-in space-y-3">
+                <div>
+                  <label htmlFor="locationText" className="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
+                    <span className="flex items-center">
+                      <MapPin className="w-4 h-4 mr-1 text-emergency-500" />
+                      Location Description
+                    </span>
+                    <button 
+                      type="button" 
+                      onClick={() => setShowMap(!showMap)}
+                      className="text-xs text-primary-600 hover:text-primary-700 flex items-center bg-primary-50 px-2 py-1 rounded-md"
+                    >
+                      <MapIcon className="w-3 h-3 mr-1" />
+                      {showMap ? 'Hide Map' : 'Pin Exact Location on Map'}
+                    </button>
+                  </label>
+                  <input
+                    id="locationText"
+                    required
+                    type="text"
+                    placeholder="e.g., 5th Avenue crossing Main Street"
+                    className="w-full px-4 py-3 rounded-xl border border-emergency-300 focus:ring-2 focus:border-transparent focus:ring-emergency-500 transition-shadow bg-emergency-50 focus:bg-white"
+                    value={locationText}
+                    onChange={(e) => setLocationText(e.target.value)}
+                  />
+                </div>
+                
+                {showMap && (
+                  <div className="h-64 rounded-xl overflow-hidden border border-gray-300 relative z-0">
+                    <MapContainer 
+                      center={position || [51.505, -0.09]} 
+                      zoom={position ? 15 : 13} 
+                      scrollWheelZoom={true} 
+                      style={{ height: '100%', width: '100%' }}
+                    >
+                      <VectorTileLayer />
+                      <LocationMarker position={position} setPosition={setPosition} />
+                    </MapContainer>
+                    {!position && (
+                       <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-[1000] bg-white px-3 py-1.5 rounded-full shadow-md text-xs font-bold text-gray-700 pointer-events-none">
+                         Click on map to place pin
+                       </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

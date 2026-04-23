@@ -4,6 +4,19 @@ import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { AlertTriangle, HelpCircle, MapPin, Send, ArrowLeft, User, Clock, Trash2, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { MapContainer, Marker } from 'react-leaflet';
+import VectorTileLayer from '../components/VectorTileLayer';
+import L from 'leaflet';
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+let DefaultIcon = L.icon({
+    iconUrl: icon,
+    shadowUrl: iconShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -251,12 +264,45 @@ export default function PostDetail() {
             {post.content}
           </div>
 
-          {post.location && (
-            <div className="inline-flex items-center mt-2 p-3 bg-red-50 text-emergency-800 rounded-xl font-medium border border-emergency-200 w-full sm:w-auto">
-              <MapPin className="w-5 h-5 mr-2" />
-              Location: {post.location}
-            </div>
-          )}
+          {(() => {
+            if (!post.location) return null;
+            let locText = post.location;
+            let locPos = null;
+            if (post.location.includes('||')) {
+              const parts = post.location.split('||');
+              locText = parts[0];
+              const coords = parts[1].split(',');
+              if (coords.length === 2) {
+                locPos = { lat: parseFloat(coords[0]), lng: parseFloat(coords[1]) };
+              }
+            } else if (post.location.match(/^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/)) {
+               const coords = post.location.split(',');
+               locText = "Exact Location Pin";
+               locPos = { lat: parseFloat(coords[0]), lng: parseFloat(coords[1]) };
+            }
+
+            return (
+              <div className="mt-4 space-y-3">
+                <div className="inline-flex items-center p-3 bg-red-50 text-emergency-800 rounded-xl font-medium border border-emergency-200 w-full sm:w-auto">
+                  <MapPin className="w-5 h-5 mr-2 flex-shrink-0" />
+                  <span>Location: {locText}</span>
+                </div>
+                {locPos && (
+                  <div className="h-48 w-full rounded-xl overflow-hidden border border-gray-200 relative z-0">
+                    <MapContainer 
+                      center={locPos} 
+                      zoom={15} 
+                      scrollWheelZoom={false} 
+                      style={{ height: '100%', width: '100%' }}
+                    >
+                      <VectorTileLayer />
+                      <Marker position={locPos}></Marker>
+                    </MapContainer>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <div className="mt-8 pt-6 border-t border-gray-100 flex items-center text-gray-600">
             <div className="bg-gray-100 p-2 rounded-full mr-3">
