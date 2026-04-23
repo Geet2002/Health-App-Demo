@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Heart, ThumbsDown, MessageCircle, Share2, Image as ImageIcon, Video, Mic, Send, X, Trash2 } from 'lucide-react';
+import Avatar from '../components/Avatar';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 
@@ -157,8 +158,8 @@ export default function HealthMoments() {
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
         <form onSubmit={handlePost}>
           <div className="flex space-x-4">
-            <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold shrink-0">
-              {user?.username?.[0]?.toUpperCase()}
+            <div className="w-10 h-10">
+              <Avatar src={user?.profile_picture} name={user?.username} size="w-10 h-10" />
             </div>
             <div className="flex-1">
               <textarea 
@@ -219,8 +220,8 @@ export default function HealthMoments() {
               {/* Header */}
               <div className="p-4 sm:p-6 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary-400 to-teal-500 flex items-center justify-center text-white font-bold shadow-sm">
-                    {share.author_name?.[0]?.toUpperCase()}
+                  <div className="w-10 h-10">
+                    <Avatar src={share.author_profile_picture} name={share.author_name} size="w-10 h-10" />
                   </div>
                   <div>
                     <h3 className="font-bold text-gray-900">{share.author_name}</h3>

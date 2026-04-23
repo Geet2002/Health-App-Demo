@@ -29,7 +29,6 @@ function AppContent() {
   return (
     <div className="flex flex-col sm:flex-row h-screen bg-gray-50 overflow-hidden">
       {!hideSidebar && <Sidebar />}
-
       <main className={`flex-1 overflow-y-auto w-full px-4 sm:px-6 lg:px-8 py-8 ${!hideSidebar ? 'pb-24 sm:pb-8' : ''}`}>
         <div className="max-w-4xl mx-auto">
           <Routes>

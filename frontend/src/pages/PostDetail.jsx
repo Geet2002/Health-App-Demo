@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { AlertTriangle, HelpCircle, MapPin, Send, ArrowLeft, User, Clock, Trash2, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
+import Avatar from '../components/Avatar';
 import { useAuth } from '../context/AuthContext';
 import { MapContainer, Marker } from 'react-leaflet';
 import VectorTileLayer from '../components/VectorTileLayer';
@@ -305,9 +306,7 @@ export default function PostDetail() {
           })()}
 
           <div className="mt-8 pt-6 border-t border-gray-100 flex items-center text-gray-600">
-            <div className="bg-gray-100 p-2 rounded-full mr-3">
-              <User className="w-5 h-5 text-gray-500" />
-            </div>
+            <Avatar src={post.author_profile_picture} name={post.author_name} size="w-12 h-12" className="mr-3" />
             <div>
               <p className="text-sm font-semibold text-gray-900">{post.author_name || 'Anonymous User'}</p>
               <p className="text-xs text-gray-500">{post.community_name ? 'Community Member' : 'Global User'}</p>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, HelpCircle, MessageCircle, MapPin, Clock, Trash2 } from 'lucide-react';
+import Avatar from './Avatar';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function PostCard({ post, currentUser, onDelete }) {
@@ -16,7 +17,7 @@ export default function PostCard({ post, currentUser, onDelete }) {
         <div className="p-5 sm:p-6 flex-1 relative">
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center space-x-3">
-              <div className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold text-gray-700">{(post.author_name || 'A').slice(0,2)}</div>
+              <Avatar src={post.author_profile_picture} name={post.author_name} size="w-11 h-11" className="flex-shrink-0" />
               <div>
                 <div className="text-sm font-semibold text-gray-900">{post.author_name || 'Anonymous User'}</div>
                 <div className="text-xs text-gray-400 flex items-center">

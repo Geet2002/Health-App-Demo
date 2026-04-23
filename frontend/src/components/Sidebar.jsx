@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { HeartPulse, PlusCircle, AlertCircle, Home, User, LogOut, Users, Bell, Droplets, Image as ImageIcon } from 'lucide-react';
+import { 
+  HeartPulse, PlusCircle, AlertCircle, Home, User, 
+  LogOut, Users, Bell, Droplets, Image as ImageIcon 
+} from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
@@ -13,24 +16,36 @@ export default function Sidebar() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
     if (user) {
-      axios.get(`${API_URL}/notifications`, { withCredentials: true }).then(res => {
-        const unread = res.data.filter(n => !n.is_read).length;
-        setUnreadCount(unread);
-      }).catch(console.error);
+      axios.get(`${API_URL}/notifications`, { withCredentials: true })
+        .then(res => {
+          if (isMounted) {
+            const unread = res.data.filter(n => !n.is_read).length;
+            setUnreadCount(unread);
+          }
+        })
+        .catch(err => console.error("Failed to fetch notifications:", err));
     }
+    return () => { isMounted = false; };
   }, [user]);
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   const isActive = (path) => location.pathname === path;
 
   const navLinkClass = (path) => `
     flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors
-    ${isActive(path) ? 'bg-primary-50 text-primary-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+    ${isActive(path) 
+      ? 'bg-primary-50 text-primary-700 font-semibold' 
+      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
   `;
 
   return (
@@ -45,10 +60,8 @@ export default function Sidebar() {
             CareCommunity
           </span>
         </Link>
-        
-        {/* Mobile quick actions could go here, but keeping it simple for now */}
       </div>
-      
+    
       {/* Navigation Links */}
       <nav className="flex-1 px-4 py-2 space-y-1 sm:overflow-y-auto flex sm:flex-col justify-around sm:justify-start border-t sm:border-t-0 border-gray-200 fixed sm:static bottom-0 left-0 w-full bg-white sm:bg-transparent shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] sm:shadow-none pb-safe sm:pb-2">
         <Link to="/" className={navLinkClass('/')} title="Feed">
@@ -72,7 +85,7 @@ export default function Sidebar() {
               <Droplets className="w-6 h-6 sm:w-5 sm:h-5 text-red-500" />
               <span className="hidden sm:inline">Blood Donation</span>
             </Link>
-            
+          
             <Link to="/notifications" className={`${navLinkClass('/notifications')} relative`} title="Notifications">
               <div className="relative">
                 <Bell className="w-6 h-6 sm:w-5 sm:h-5" />
@@ -102,7 +115,7 @@ export default function Sidebar() {
                 <span>Emergency Alert</span>
               </Link>
             </div>
-            
+          
             <div className="flex items-center justify-between pt-4 border-t border-gray-100">
               <Link to="/profile" className="flex items-center space-x-2 overflow-hidden group flex-1 hover:bg-gray-50 p-1.5 rounded-xl transition-colors">
                 <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0 overflow-hidden border border-gray-200">
@@ -132,7 +145,7 @@ export default function Sidebar() {
       {/* Mobile Create Buttons (Floating) */}
       {user && (
         <div className="sm:hidden fixed bottom-20 right-4 flex flex-col space-y-2 z-50">
-           <Link to="/create?type=emergency" className="bg-emergency-600 text-white p-3 rounded-full shadow-lg">
+           <Link to="/create?type=emergency" className="bg-red-600 text-white p-3 rounded-full shadow-lg">
              <AlertCircle className="w-6 h-6" />
            </Link>
            <Link to="/create?type=query" className="bg-primary-600 text-white p-3 rounded-full shadow-lg">

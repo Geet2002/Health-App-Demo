@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 import { Shield, Users, Lock, Unlock, Check, X, ShieldAlert, Trash2, MessageCircle, MapPin, Clock, AlertTriangle, HelpCircle, PlusCircle } from 'lucide-react';
+import Avatar from '../components/Avatar';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -136,8 +137,8 @@ export default function CommunityDetail() {
                 {approvedMembers.map(m => (
                   <li key={m.user_id} className="p-4 flex items-center justify-between hover:bg-gray-50">
                     <div className="flex items-center">
-                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold mr-3">
-                        {m.username.charAt(0).toUpperCase()}
+                      <div className="w-8 h-8 mr-3">
+                        <Avatar src={m.profile_picture} name={m.username} size="w-8 h-8" />
                       </div>
                       <div>
                         <span className="font-semibold text-gray-900">{m.username}</span>

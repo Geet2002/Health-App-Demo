@@ -157,7 +157,7 @@ app.get('/api/posts', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const [rows] = await pool.query(`
-      SELECT p.*, u.username as author_name, c.name as community_name,
+  SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, c.name as community_name,
       (SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) as comment_count
       FROM posts p
       LEFT JOIN users u ON p.author_id = u.id
@@ -216,7 +216,7 @@ app.get('/api/posts/:id', authenticate, async (req, res) => {
     const userId = req.user.id;
     
     const [posts] = await pool.query(`
-      SELECT p.*, u.username as author_name, c.name as community_name
+      SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, c.name as community_name
       FROM posts p 
       LEFT JOIN users u ON p.author_id = u.id 
       LEFT JOIN communities c ON p.community_id = c.id
@@ -226,7 +226,7 @@ app.get('/api/posts/:id', authenticate, async (req, res) => {
     if (posts.length === 0) return res.status(404).json({ error: 'Not found' });
 
     const [comments] = await pool.query(`
-      SELECT c.*, u.username as author_name,
+      SELECT c.*, u.username as author_name, u.profile_picture as author_profile_picture,
       (SELECT vote_type FROM comment_votes cv WHERE cv.comment_id = c.id AND cv.user_id = ?) as user_vote
       FROM comments c LEFT JOIN users u ON c.author_id = u.id 
       WHERE c.post_id = ? ORDER BY c.created_at ASC
@@ -624,7 +624,7 @@ app.get('/api/health-shares', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const [rows] = await pool.query(`
-      SELECT hs.*, u.username as author_name,
+      SELECT hs.*, u.username as author_name, u.profile_picture as author_profile_picture,
       (SELECT COUNT(*) FROM health_share_comments hsc WHERE hsc.share_id = hs.id) as comment_count,
       (SELECT vote_type FROM health_share_votes hsv WHERE hsv.share_id = hs.id AND hsv.user_id = ?) as user_vote
       FROM health_shares hs
