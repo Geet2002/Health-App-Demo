@@ -3,8 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { AlertCircle, FileText, MapPin, Send, Map as MapIcon } from 'lucide-react';
-import { MapContainer, Marker, useMapEvents } from 'react-leaflet';
-import VectorTileLayer from '../components/VectorTileLayer';
+import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -234,7 +233,10 @@ export default function CreatePost() {
                       scrollWheelZoom={true} 
                       style={{ height: '100%', width: '100%' }}
                     >
-                      <VectorTileLayer />
+                      <TileLayer
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        attribution='&copy; OpenStreetMap contributors'
+                      />
                       <LocationMarker position={position} setPosition={setPosition} />
                       <RecenterMap position={position} />
                     </MapContainer>

@@ -238,7 +238,7 @@ export default function BloodRequestDetails() {
                     value={offerForm.phone}
                     onChange={e => setOfferForm({...offerForm, phone: e.target.value})}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
-                    placeholder="+1 234 567 8900"
+                    placeholder="+91 00000 00000"
                   />
                 </div>
               </div>
@@ -248,7 +248,6 @@ export default function BloodRequestDetails() {
                   <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
                     type="email"
-                    required
                     value={offerForm.email}
                     onChange={e => setOfferForm({...offerForm, email: e.target.value})}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
@@ -388,31 +387,38 @@ export default function BloodRequestDetails() {
           )}
 
           {/* Add Comment Form */}
-          <form onSubmit={handleCommentSubmit} className="mt-6 flex items-start space-x-3">
-            <div className="w-10 h-10 rounded-full bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200 flex items-center justify-center text-gray-500 font-bold">
-              {user?.profile_picture ? (
-                <img src={`http://localhost:5001${user.profile_picture}`} alt="" className="w-full h-full object-cover" />
-              ) : (
-                user?.username?.charAt(0).toUpperCase() || 'U'
-              )}
+          {request.status === 'pending' ? (
+            <form onSubmit={handleCommentSubmit} className="mt-6 flex items-start space-x-3">
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200 flex items-center justify-center text-gray-500 font-bold">
+                {user?.profile_picture ? (
+                  <img src={`http://localhost:5001${user.profile_picture}`} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  user?.username?.charAt(0).toUpperCase() || 'U'
+                )}
+              </div>
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Ask a question or leave a comment..."
+                  className="w-full pl-4 pr-12 py-3 border border-gray-200 rounded-full focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none text-sm bg-gray-50 hover:bg-white transition-colors"
+                />
+                <button
+                  type="submit"
+                  disabled={!newComment.trim()}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-red-600 hover:bg-red-50 rounded-full disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="mt-6 p-4 bg-gray-50 border border-gray-100 rounded-xl text-center text-gray-500 text-sm italic flex items-center justify-center">
+              <CheckCircle className="w-4 h-4 mr-2" />
+              This request has been fulfilled. Comments are closed.
             </div>
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Ask a question or leave a comment..."
-                className="w-full pl-4 pr-12 py-3 border border-gray-200 rounded-full focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none text-sm bg-gray-50 hover:bg-white transition-colors"
-              />
-              <button
-                type="submit"
-                disabled={!newComment.trim()}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-red-600 hover:bg-red-50 rounded-full disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-          </form>
+          )}
         </div>
       </div>
 

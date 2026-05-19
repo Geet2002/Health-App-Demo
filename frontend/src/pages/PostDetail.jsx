@@ -6,8 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { AlertTriangle, HelpCircle, MapPin, Send, ArrowLeft, User, Clock, Trash2, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import { useAuth } from '../context/AuthContext';
-import { MapContainer, Marker } from 'react-leaflet';
-import VectorTileLayer from '../components/VectorTileLayer';
+import { MapContainer, Marker, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -297,7 +296,10 @@ export default function PostDetail() {
                       scrollWheelZoom={false} 
                       style={{ height: '100%', width: '100%' }}
                     >
-                      <VectorTileLayer />
+                      <TileLayer
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        attribution='&copy; OpenStreetMap contributors'
+                      />
                       <Marker position={locPos}></Marker>
                     </MapContainer>
                   </div>
