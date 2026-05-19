@@ -14,7 +14,7 @@ export default function BloodDonation() {
 
   const fetchRequests = async () => {
     try {
-      const response = await axios.get(`${API_URL}/blood-requests`, { withCredentials: true });
+      const response = await axios.get(`${API_URL}/blood-requests`);
       setRequests(response.data);
     } catch (error) {
       console.error('Error fetching blood requests:', error);
@@ -30,7 +30,7 @@ export default function BloodDonation() {
   const handleFulfill = async (id) => {
     if (!window.confirm('Are you sure you want to mark this request as fulfilled?')) return;
     try {
-      await axios.put(`${API_URL}/blood-requests/${id}/fulfill`, {}, { withCredentials: true });
+      await axios.put(`${API_URL}/blood-requests/${id}/fulfill`, {});
       fetchRequests();
     } catch (error) {
       console.error('Error fulfilling request:', error);

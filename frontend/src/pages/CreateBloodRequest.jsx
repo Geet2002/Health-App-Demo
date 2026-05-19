@@ -25,7 +25,7 @@ export default function CreateBloodRequest() {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.post(`${API_URL}/blood-requests`, formData, { withCredentials: true });
+      await axios.post(`${API_URL}/blood-requests`, formData);
       navigate('/blood-donation');
     } catch (error) {
       console.error('Error creating blood request:', error);

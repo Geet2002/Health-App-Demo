@@ -125,7 +125,7 @@ export default function PostDetail() {
 
   const fetchPostDetails = async () => {
     try {
-      const response = await axios.get(`${API_URL}/posts/${id}`, { withCredentials: true });
+      const response = await axios.get(`${API_URL}/posts/${id}`);
       setPost(response.data);
       setComments(response.data.comments || []);
     } catch (error) {
@@ -143,7 +143,7 @@ export default function PostDetail() {
     
     setSubmitting(true);
     try {
-      await axios.post(`${API_URL}/posts/${id}/comments`, { content: newComment }, { withCredentials: true });
+      await axios.post(`${API_URL}/posts/${id}/comments`, { content: newComment });
       fetchPostDetails();
       setNewComment('');
     } catch (error) {
@@ -156,7 +156,7 @@ export default function PostDetail() {
 
   const handleReply = async (parentId, text) => {
     try {
-      await axios.post(`${API_URL}/posts/${id}/comments`, { content: text, parent_id: parentId }, { withCredentials: true });
+      await axios.post(`${API_URL}/posts/${id}/comments`, { content: text, parent_id: parentId });
       fetchPostDetails();
     } catch (error) {
       console.error('Error replying:', error);
@@ -167,7 +167,7 @@ export default function PostDetail() {
   const handleDeletePost = async () => {
     if(!window.confirm('Delete this post?')) return;
     try {
-      await axios.delete(`${API_URL}/posts/${id}`, { withCredentials: true });
+      await axios.delete(`${API_URL}/posts/${id}`);
       navigate('/');
     } catch (err) { alert('Error deleting post'); }
   };
@@ -175,7 +175,7 @@ export default function PostDetail() {
   const handleDeleteComment = async (commentId) => {
     if(!window.confirm('Delete this comment?')) return;
     try {
-      await axios.delete(`${API_URL}/comments/${commentId}`, { withCredentials: true });
+      await axios.delete(`${API_URL}/comments/${commentId}`);
       setComments(comments.filter(c => c.id !== commentId && c.parent_id !== commentId));
       fetchPostDetails(); // refetch to clean up deeply nested children
     } catch (err) { alert('Error deleting comment'); }
@@ -188,7 +188,7 @@ export default function PostDetail() {
       const isRemoving = comment.user_vote === type;
       await axios.post(`${API_URL}/comments/${commentId}/vote`, {
         vote_type: isRemoving ? null : type
-      }, { withCredentials: true });
+      });
       fetchPostDetails(); // easy way to perfectly sync counts
     } catch (err) {
       console.error('Error voting:', err);

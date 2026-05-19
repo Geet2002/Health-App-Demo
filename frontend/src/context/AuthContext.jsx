@@ -3,8 +3,16 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
-// Setup axios to send cookies with requests
-axios.defaults.withCredentials = true;
+// Setup axios interceptor for Bearer token
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
 
 const AuthContext = createContext();
 
@@ -29,16 +37,19 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     const res = await axios.post(`${API_URL}/auth/login`, { username, password });
+    localStorage.setItem('token', res.data.token);
     setUser(res.data.user);
   };
 
   const signup = async (username, password) => {
     const res = await axios.post(`${API_URL}/auth/signup`, { username, password });
+    localStorage.setItem('token', res.data.token);
     setUser(res.data.user);
   };
 
   const logout = async () => {
     await axios.post(`${API_URL}/auth/logout`);
+    localStorage.removeItem('token');
     setUser(null);
   };
 

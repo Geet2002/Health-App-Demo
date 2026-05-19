@@ -30,7 +30,7 @@ export default function HealthMoments() {
 
   const fetchShares = async () => {
     try {
-      const res = await axios.get(`${API_URL}/health-shares`, { withCredentials: true });
+      const res = await axios.get(`${API_URL}/health-shares`);
       setShares(res.data);
     } catch (err) {
       console.error(err);
@@ -64,8 +64,7 @@ export default function HealthMoments() {
 
     try {
       await axios.post(`${API_URL}/health-shares`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        withCredentials: true
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
       setContent('');
       clearMedia();
@@ -80,7 +79,7 @@ export default function HealthMoments() {
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this post?')) return;
     try {
-      await axios.delete(`${API_URL}/health-shares/${id}`, { withCredentials: true });
+      await axios.delete(`${API_URL}/health-shares/${id}`);
       setShares(shares.filter(s => s.id !== id));
     } catch (err) {
       alert('Error deleting');
@@ -89,7 +88,7 @@ export default function HealthMoments() {
 
   const handleVote = async (id, voteType) => {
     try {
-      await axios.post(`${API_URL}/health-shares/${id}/vote`, { vote_type: voteType }, { withCredentials: true });
+      await axios.post(`${API_URL}/health-shares/${id}/vote`, { vote_type: voteType });
       fetchShares(); // Refresh to get updated counts and user_vote
     } catch (err) {
       console.error(err);
@@ -102,7 +101,7 @@ export default function HealthMoments() {
       return;
     }
     try {
-      const res = await axios.get(`${API_URL}/health-shares/${shareId}/comments`, { withCredentials: true });
+      const res = await axios.get(`${API_URL}/health-shares/${shareId}/comments`);
       setComments({ ...comments, [shareId]: res.data });
       setActiveCommentId(shareId);
     } catch (err) {
@@ -114,10 +113,10 @@ export default function HealthMoments() {
     e.preventDefault();
     if (!newComment.trim()) return;
     try {
-      await axios.post(`${API_URL}/health-shares/${shareId}/comments`, { content: newComment }, { withCredentials: true });
+      await axios.post(`${API_URL}/health-shares/${shareId}/comments`, { content: newComment });
       setNewComment('');
       // Refresh comments for this post
-      const res = await axios.get(`${API_URL}/health-shares/${shareId}/comments`, { withCredentials: true });
+      const res = await axios.get(`${API_URL}/health-shares/${shareId}/comments`);
       setComments({ ...comments, [shareId]: res.data });
       // Refresh shares to update comment_count
       fetchShares();

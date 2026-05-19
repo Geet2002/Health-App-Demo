@@ -27,7 +27,7 @@ export default function Profile() {
 
   const fetchProfile = async () => {
     try {
-      const res = await axios.get(`${API_URL}/users/profile`, { withCredentials: true });
+      const res = await axios.get(`${API_URL}/users/profile`);
       const data = res.data;
       setProfile({
         birthdate: data.birthdate ? new Date(data.birthdate).toISOString().split('T')[0] : '',
@@ -68,8 +68,7 @@ export default function Profile() {
 
     try {
       await axios.put(`${API_URL}/users/profile`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        withCredentials: true
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
       setMessage('Profile updated successfully!');
       // Force reload to update sidebar avatar (or we could use context, but reload is robust)

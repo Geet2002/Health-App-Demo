@@ -24,7 +24,7 @@ export default function CommunityDetail() {
     try {
       const res = await axios.get(`${API_URL}/communities/${id}`);
       setComm(res.data);
-      const postRes = await axios.get(`${API_URL}/communities/${id}/posts`, { withCredentials: true });
+      const postRes = await axios.get(`${API_URL}/communities/${id}/posts`);
       setPosts(postRes.data);
     } catch (err) {
       if (err.response?.status === 404) navigate('/communities');

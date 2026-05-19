@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const mysql = require('mysql2/promise');
@@ -9,9 +8,8 @@ const path = require('path');
 require('dotenv').config();
 
 const app = express();
-app.use(cors({ origin: 'http://localhost:5173', credentials: true })); // necessary for cookies
+app.use(cors({ origin: 'http://localhost:5173' })); // credentials not needed for bearer tokens
 app.use(express.json());
-app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Multer Storage Configuration
@@ -37,8 +35,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 
 // Auth Middleware
 const authenticate = (req, res, next) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
@@ -62,8 +64,7 @@ app.post('/api/auth/signup', async (req, res) => {
     );
 
     const token = jwt.sign({ id: result.insertId, username }, JWT_SECRET, { expiresIn: '7d' });
-    res.cookie('token', token, { httpOnly: true, secure: false, maxAge: 3600000 });
-    res.json({ message: 'Signup successful', user: { id: result.insertId, username } });
+    res.json({ message: 'Signup successful', token, user: { id: result.insertId, username } });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Username already exists' });
     console.error(err);
@@ -82,8 +83,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
-    res.cookie('token', token, { httpOnly: true, secure: false, maxAge: 7 * 24 * 3600000 });
-    res.json({ message: 'Login successful', user: { id: user.id, username: user.username } });
+    res.json({ message: 'Login successful', token, user: { id: user.id, username: user.username } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -91,7 +91,6 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/logout', (req, res) => {
-  res.clearCookie('token');
   res.json({ message: 'Logged out' });
 });
 

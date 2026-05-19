@@ -18,7 +18,7 @@ export default function Sidebar() {
   useEffect(() => {
     let isMounted = true;
     if (user) {
-      axios.get(`${API_URL}/notifications`, { withCredentials: true })
+      axios.get(`${API_URL}/notifications`)
         .then(res => {
           if (isMounted) {
             const unread = res.data.filter(n => !n.is_read).length;
