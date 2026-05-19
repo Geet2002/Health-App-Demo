@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
@@ -31,10 +32,10 @@ export default function Communities() {
     e.stopPropagation(); // Prevent bubbling up to the Link component wrapper
     try {
       const res = await axios.post(`${API_URL}/communities/${id}/join`);
-      alert(res.data.message);
+      toast.success(res.data.message);
       fetchComms(); // Refresh to update user_status
     } catch (err) {
-      alert(err.response?.data?.error || 'Error joining');
+      toast.error(err.response?.data?.error || 'Error joining');
     }
   };
 

@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
@@ -93,7 +94,7 @@ export default function CreatePost() {
       navigate('/');
     } catch (error) {
       console.error('Error creating post:', error);
-      alert('Failed to post. Please try again.');
+      toast.error('Failed to post. Please try again.');
     } finally {
       setLoading(false);
     }

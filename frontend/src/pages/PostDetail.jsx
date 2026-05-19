@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -130,7 +131,7 @@ export default function PostDetail() {
       setComments(response.data.comments || []);
     } catch (error) {
       console.error('Error fetching post:', error);
-      alert('Post not found or network error.');
+      toast.error('Post not found or network error.');
       navigate('/');
     } finally {
       setLoading(false);
@@ -148,7 +149,7 @@ export default function PostDetail() {
       setNewComment('');
     } catch (error) {
       console.error('Error adding comment:', error);
-      alert('Failed to add comment. Please try again.');
+      toast.error('Failed to add comment. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -160,7 +161,7 @@ export default function PostDetail() {
       fetchPostDetails();
     } catch (error) {
       console.error('Error replying:', error);
-      alert('Failed to reply.');
+      toast.error('Failed to reply.');
     }
   };
 
@@ -169,7 +170,7 @@ export default function PostDetail() {
     try {
       await axios.delete(`${API_URL}/posts/${id}`);
       navigate('/');
-    } catch (err) { alert('Error deleting post'); }
+    } catch (err) { toast.error('Error deleting post'); }
   };
 
   const handleDeleteComment = async (commentId) => {
@@ -178,11 +179,11 @@ export default function PostDetail() {
       await axios.delete(`${API_URL}/comments/${commentId}`);
       setComments(comments.filter(c => c.id !== commentId && c.parent_id !== commentId));
       fetchPostDetails(); // refetch to clean up deeply nested children
-    } catch (err) { alert('Error deleting comment'); }
+    } catch (err) { toast.error('Error deleting comment'); }
   };
 
   const handleVote = async (commentId, type) => {
-    if (!user) { alert('Please login to vote'); return; }
+    if (!user) { toast.success('Please login to vote'); return; }
     try {
       const comment = comments.find(c => c.id === commentId);
       const isRemoving = comment.user_vote === type;

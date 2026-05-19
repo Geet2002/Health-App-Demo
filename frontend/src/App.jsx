@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
@@ -15,6 +16,7 @@ import CommunityDetail from './pages/CommunityDetail';
 import Notifications from './pages/Notifications';
 import BloodDonation from './pages/BloodDonation';
 import CreateBloodRequest from './pages/CreateBloodRequest';
+import BloodRequestDetails from './pages/BloodRequestDetails';
 import HealthMoments from './pages/HealthMoments';
 import Profile from './pages/Profile';
 
@@ -45,6 +47,7 @@ function AppContent() {
             
             <Route path="/blood-donation" element={<ProtectedRoute><BloodDonation /></ProtectedRoute>} />
             <Route path="/blood-donation/create" element={<ProtectedRoute><CreateBloodRequest /></ProtectedRoute>} />
+            <Route path="/blood-donation/:id" element={<ProtectedRoute><BloodRequestDetails /></ProtectedRoute>} />
             <Route path="/health-moments" element={<ProtectedRoute><HealthMoments /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             
@@ -60,6 +63,31 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Toaster 
+          position="top-center" 
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#333',
+              color: '#fff',
+              fontWeight: '500',
+              borderRadius: '12px',
+              padding: '16px',
+            },
+            success: {
+              style: {
+                background: '#10b981',
+                color: '#fff',
+              },
+            },
+            error: {
+              style: {
+                background: '#ef4444',
+                color: '#fff',
+              },
+            },
+          }} 
+        />
         <AppContent />
       </AuthProvider>
     </BrowserRouter>

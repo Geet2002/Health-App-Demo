@@ -555,20 +555,147 @@ app.post('/api/blood-requests', authenticate, async (req, res) => {
   }
 });
 
-app.put('/api/blood-requests/:id/fulfill', authenticate, async (req, res) => {
+app.get('/api/blood-requests/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    // Get request details
+    const [requests] = await pool.query(`
+      SELECT b.*, u.username as requester_name 
+      FROM blood_requests b 
+      JOIN users u ON b.user_id = u.id 
+      WHERE b.id = ?
+    `, [id]);
+    
+    if (requests.length === 0) return res.status(404).json({ error: 'Not found' });
+    const request = requests[0];
+
+    // Get comments
+    const [comments] = await pool.query(`
+      SELECT c.*, u.username as author_name, u.profile_picture as author_profile_picture 
+      FROM blood_request_comments c 
+      JOIN users u ON c.author_id = u.id 
+      WHERE c.request_id = ? 
+      ORDER BY c.created_at ASC
+    `, [id]);
+
+    // Get offers (only visible to requester, or the donor themselves)
+    let offers = [];
+    if (request.user_id === userId) {
+      // Requester sees all offers
+      const [allOffers] = await pool.query(`
+        SELECT o.*, u.username as donor_name, u.profile_picture as donor_profile_picture 
+        FROM blood_donation_offers o 
+        JOIN users u ON o.donor_id = u.id 
+        WHERE o.request_id = ? 
+        ORDER BY o.created_at DESC
+      `, [id]);
+      offers = allOffers;
+    } else {
+      // User only sees their own offers
+      const [userOffers] = await pool.query(`
+        SELECT o.*, u.username as donor_name, u.profile_picture as donor_profile_picture 
+        FROM blood_donation_offers o 
+        JOIN users u ON o.donor_id = u.id 
+        WHERE o.request_id = ? AND o.donor_id = ?
+        ORDER BY o.created_at DESC
+      `, [id, userId]);
+      offers = userOffers;
+    }
+
+    res.json({ ...request, comments, offers });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/blood-requests/:id/comments', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+    const author_id = req.user.id;
+
+    const [result] = await pool.query(
+      `INSERT INTO blood_request_comments (request_id, author_id, content) VALUES (?, ?, ?)`,
+      [id, author_id, content]
+    );
+
+    // Notify requester
+    const [requests] = await pool.query(`SELECT user_id, patient_name FROM blood_requests WHERE id = ?`, [id]);
+    if (requests.length > 0 && requests[0].user_id !== author_id) {
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'blood_comment', ?, ?)`,
+        [requests[0].user_id, `Someone commented on your blood request for ${requests[0].patient_name}`, id]
+      );
+    }
+
+    res.json({ id: result.insertId, message: 'Comment added successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/blood-requests/:id/offers', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { phone, email, message } = req.body;
+    const donor_id = req.user.id;
+
+    // Don't allow requester to offer to themselves
+    const [requests] = await pool.query(`SELECT user_id, patient_name FROM blood_requests WHERE id = ?`, [id]);
+    if (requests.length === 0) return res.status(404).json({ error: 'Not found' });
+    if (requests[0].user_id === donor_id) return res.status(400).json({ error: 'Cannot offer donation to your own request' });
+
+    const [result] = await pool.query(
+      `INSERT INTO blood_donation_offers (request_id, donor_id, phone, email, message) VALUES (?, ?, ?, ?, ?)`,
+      [id, donor_id, phone, email, message]
+    );
+
+    // Notify requester
+    await pool.query(
+      `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'blood_offer', ?, ?)`,
+      [requests[0].user_id, `New donation offer received for ${requests[0].patient_name}`, id]
+    );
+
+    res.json({ id: result.insertId, message: 'Donation offer sent successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/blood-requests/:id/toggle-status', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const user_id = req.user.id;
 
-    // Check if the user is the owner of the request
-    const [requests] = await pool.query(`SELECT user_id FROM blood_requests WHERE id = ?`, [id]);
+    const [requests] = await pool.query(`SELECT user_id, status FROM blood_requests WHERE id = ?`, [id]);
     if (requests.length === 0) return res.status(404).json({ error: 'Not found' });
     if (requests[0].user_id !== user_id) return res.status(403).json({ error: 'Unauthorized' });
 
-    await pool.query(`UPDATE blood_requests SET status = 'fulfilled' WHERE id = ?`, [id]);
-    res.json({ message: 'Marked as fulfilled' });
+    const newStatus = requests[0].status === 'pending' ? 'fulfilled' : 'pending';
+    await pool.query(`UPDATE blood_requests SET status = ? WHERE id = ?`, [newStatus, id]);
+    res.json({ message: `Marked as ${newStatus}`, status: newStatus });
   } catch (error) {
     console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/blood-requests/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [requests] = await pool.query('SELECT user_id FROM blood_requests WHERE id = ?', [id]);
+    if (requests.length === 0) return res.status(404).json({ error: 'Not found' });
+    if (requests[0].user_id !== req.user.id) return res.status(403).json({ error: 'Unauthorized' });
+
+    await pool.query('DELETE FROM blood_requests WHERE id = ?', [id]);
+    res.json({ message: 'Blood request deleted' });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
@@ -36,7 +37,7 @@ export default function Feed() {
       await axios.delete(`${API_URL}/posts/${id}`);
       setPosts(posts.filter(p => p.id !== id));
     } catch (err) {
-      alert('Error deleting post');
+      toast.error('Error deleting post');
     }
   };
 

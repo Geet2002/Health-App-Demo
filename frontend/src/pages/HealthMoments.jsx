@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Heart, ThumbsDown, MessageCircle, Share2, Image as ImageIcon, Video, Mic, Send, X, Trash2 } from 'lucide-react';
@@ -70,7 +71,7 @@ export default function HealthMoments() {
       clearMedia();
       fetchShares();
     } catch (err) {
-      alert('Error posting share');
+      toast.error('Error posting share');
     } finally {
       setIsPosting(false);
     }
@@ -82,7 +83,7 @@ export default function HealthMoments() {
       await axios.delete(`${API_URL}/health-shares/${id}`);
       setShares(shares.filter(s => s.id !== id));
     } catch (err) {
-      alert('Error deleting');
+      toast.error('Error deleting');
     }
   };
 

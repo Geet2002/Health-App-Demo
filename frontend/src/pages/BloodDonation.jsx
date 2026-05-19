@@ -27,16 +27,7 @@ export default function BloodDonation() {
     fetchRequests();
   }, []);
 
-  const handleFulfill = async (id) => {
-    if (!window.confirm('Are you sure you want to mark this request as fulfilled?')) return;
-    try {
-      await axios.put(`${API_URL}/blood-requests/${id}/fulfill`, {});
-      fetchRequests();
-    } catch (error) {
-      console.error('Error fulfilling request:', error);
-      alert('Failed to mark as fulfilled.');
-    }
-  };
+
 
   const getUrgencyColor = (urgency) => {
     switch (urgency) {
@@ -121,25 +112,19 @@ export default function BloodDonation() {
                 </div>
               </div>
 
-              <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end">
+              <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
                 {request.status === 'fulfilled' ? (
                   <span className="inline-flex items-center text-sm font-semibold text-green-600">
                     <CheckCircle className="w-4 h-4 mr-1.5" /> Fulfilled
                   </span>
                 ) : (
-                  user && request.user_id === user.id ? (
-                    <button 
-                      onClick={() => handleFulfill(request.id)}
-                      className="text-sm font-semibold text-green-600 hover:text-green-700 flex items-center transition-colors"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-1.5" /> Mark as Fulfilled
-                    </button>
-                  ) : (
-                    <button className="text-sm font-bold bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200 transition-colors w-full sm:w-auto">
-                      I Can Donate
-                    </button>
-                  )
+                  <span className="inline-flex items-center text-sm font-semibold text-yellow-600">
+                    <Clock className="w-4 h-4 mr-1.5" /> Pending
+                  </span>
                 )}
+                <Link to={`${user ? `/blood-donation/${request.id}` : '/login'}`} className={`text-sm font-bold bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200 transition-colors w-full sm:w-auto text-center ${!user ? 'cursor-not-allowed opacity-50' : ''}`}>
+                  {user ? (user.id === request.user_id ? 'Manage Request' : 'View Details') : 'View Details'}
+                </Link>
               </div>
             </div>
           ))}

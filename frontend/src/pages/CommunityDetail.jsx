@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
@@ -41,10 +42,10 @@ export default function CommunityDetail() {
   const handleJoin = async () => {
     try {
       const res = await axios.post(`${API_URL}/communities/${id}/join`);
-      alert(res.data.message);
+      toast.success(res.data.message);
       fetchDetail();
     } catch (err) {
-      alert('Error joining');
+      toast.error('Error joining');
     }
   };
 
@@ -53,7 +54,7 @@ export default function CommunityDetail() {
       await axios.post(`${API_URL}/communities/${id}/requests/${userId}`, { action });
       fetchDetail();
     } catch (err) {
-      alert(err.response?.data?.error || err.message || 'Error updating request');
+      toast.error(err.response?.data?.error || err.message || 'Error updating request');
     }
   };
 
@@ -63,7 +64,7 @@ export default function CommunityDetail() {
       await axios.post(`${API_URL}/communities/${id}/admin`, { targetUserId });
       fetchDetail();
     } catch (err) {
-      alert('Error promoting to admin');
+      toast.error('Error promoting to admin');
     }
   };
 
@@ -73,7 +74,7 @@ export default function CommunityDetail() {
       await axios.delete(`${API_URL}/communities/${id}`);
       navigate('/communities');
     } catch (err) {
-      alert('Error deleting community');
+      toast.error('Error deleting community');
     }
   };
 

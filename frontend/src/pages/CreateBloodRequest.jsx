@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -29,7 +30,7 @@ export default function CreateBloodRequest() {
       navigate('/blood-donation');
     } catch (error) {
       console.error('Error creating blood request:', error);
-      alert('Failed to post blood request. Please try again.');
+      toast.error('Failed to post blood request. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -17,7 +18,7 @@ export default function CreateCommunity() {
       const res = await axios.post(`${API_URL}/communities`, { name, description, is_private: isPrivate });
       navigate(`/communities/${res.data.id}`);
     } catch (err) {
-      alert(err.response?.data?.error || 'Error creating community');
+      toast.error(err.response?.data?.error || 'Error creating community');
     }
   };
 
