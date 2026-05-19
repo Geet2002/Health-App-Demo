@@ -667,6 +667,26 @@ app.post('/api/blood-requests/:id/offers', authenticate, async (req, res) => {
   }
 });
 
+app.delete('/api/blood-requests/:id/offers', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const donor_id = req.user.id;
+
+    // Check if the user has an offer for this request
+    const [offers] = await pool.query(`SELECT id FROM blood_donation_offers WHERE request_id = ? AND donor_id = ?`, [id, donor_id]);
+    if (offers.length === 0) {
+      return res.status(404).json({ error: 'Donation offer not found' });
+    }
+
+    await pool.query(`DELETE FROM blood_donation_offers WHERE request_id = ? AND donor_id = ?`, [id, donor_id]);
+
+    res.json({ message: 'Donation offer withdrawn successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.put('/api/blood-requests/:id/toggle-status', authenticate, async (req, res) => {
   try {
     const { id } = req.params;

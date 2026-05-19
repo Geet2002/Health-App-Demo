@@ -98,6 +98,18 @@ export default function BloodRequestDetails() {
     }
   };
 
+  const handleWithdrawOffer = async () => {
+    if (!window.confirm('Are you sure you want to withdraw your donation offer?')) return;
+    try {
+      await axios.delete(`${API_URL}/blood-requests/${id}/offers`);
+      toast.success('Donation offer withdrawn successfully');
+      fetchRequestDetails();
+    } catch (error) {
+      console.error('Error withdrawing offer:', error);
+      toast.error('Failed to withdraw offer.');
+    }
+  };
+
   const getUrgencyColor = (urgency) => {
     switch (urgency) {
       case 'critical': return 'bg-red-100 text-red-800 border-red-200';
@@ -196,7 +208,20 @@ export default function BloodRequestDetails() {
                   </button>
                 </div>
               ) : (
-                request.status === 'pending' ? (
+                (!isOwner && offers.length > 0) ? (
+                  <div className="w-full text-center bg-green-50 p-6 rounded-xl border border-green-200">
+                    <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-2" />
+                    <p className="text-green-800 font-bold mb-2">You have offered to donate</p>
+                    <p className="text-green-700 text-sm mb-4">The requester has your contact details.</p>
+                    <button 
+                      onClick={handleWithdrawOffer}
+                      className="w-full py-2.5 px-4 rounded-xl font-bold bg-white text-red-600 border border-red-200 hover:bg-red-50 flex justify-center items-center transition-all shadow-sm"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Withdraw Offer
+                    </button>
+                  </div>
+                ) : request.status === 'pending' ? (
                   <div className="w-full text-center">
                     <Heart className="w-12 h-12 text-red-100 mx-auto mb-3" />
                     <p className="text-gray-600 mb-4 text-sm">Every drop counts. Offer to donate and help save a life today.</p>
@@ -335,16 +360,6 @@ export default function BloodRequestDetails() {
         </div>
       )}
 
-      {/* User's own offers if not owner */}
-      {!isOwner && offers.length > 0 && (
-        <div className="bg-green-50 rounded-2xl p-6 border border-green-200">
-          <div className="flex items-center text-green-800 font-bold mb-2">
-            <CheckCircle className="w-5 h-5 mr-2" />
-            You have offered to donate
-          </div>
-          <p className="text-green-700 text-sm">The requester has received your contact details and message.</p>
-        </div>
-      )}
 
       {/* Questions & Comments Section */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
