@@ -52,7 +52,7 @@ export default function Sidebar() {
     <aside className="w-full sm:w-64 bg-white border-r border-gray-200 sm:h-screen sticky top-0 flex flex-col z-50">
       {/* Header/Logo */}
       <div className="p-4 sm:p-6 flex items-center justify-between sm:justify-start">
-        <Link to="/" className="flex items-center space-x-2 group">
+        <Link to="/feed" className="flex items-center space-x-2 group">
           <div className="bg-primary-100 p-2 rounded-lg group-hover:bg-primary-200 transition-colors">
             <HeartPulse className="w-6 h-6 text-primary-600" />
           </div>
@@ -64,7 +64,7 @@ export default function Sidebar() {
     
       {/* Navigation Links */}
       <nav className="flex-1 px-4 py-2 space-y-1 sm:overflow-y-auto flex sm:flex-col justify-around sm:justify-start border-t sm:border-t-0 border-gray-200 fixed sm:static bottom-0 left-0 w-full bg-white sm:bg-transparent shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] sm:shadow-none pb-safe sm:pb-2">
-        <Link to="/" className={navLinkClass('/')} title="Feed">
+        <Link to="/feed" className={navLinkClass('/feed')} title="Feed">
           <Home className="w-6 h-6 sm:w-5 sm:h-5" />
           <span className="hidden sm:inline">Feed</span>
         </Link>
