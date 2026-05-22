@@ -2,11 +2,12 @@ import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { AlertCircle, FileText, MapPin, Send, Map as MapIcon } from 'lucide-react';
+import { AlertCircle, FileText, MapPin, Send, Map as MapIcon, Mic } from 'lucide-react';
 import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+import useSpeechToText from '../hooks/useSpeechToText';
 
 let DefaultIcon = L.icon({
     iconUrl: icon,
@@ -44,7 +45,7 @@ export default function CreatePost() {
   const navigate = useNavigate();
   const loc = useLocation();
   const queryParams = new URLSearchParams(loc.search);
-  
+
   const [type, setType] = useState(queryParams.get('type') || 'query');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -54,6 +55,48 @@ export default function CreatePost() {
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [speechLang, setSpeechLang] = useState('en-US');
+
+  const SPEECH_LANGUAGES = [
+    { code: 'en-US', label: 'English', flag: '🇺🇸' },
+    { code: 'hi-IN', label: 'Hindi', flag: '🇮🇳' },
+    { code: 'as-IN', label: 'Assamese', flag: '🇮🇳' },
+  ];
+
+  const { 
+    isListening: titleIsListening, 
+    isSupported: titleIsSupported, 
+    error: titleError, 
+    transcript: titleTranscript,
+    startListening: startTitleListening,
+    stopListening: stopTitleListening 
+  } = useSpeechToText(speechLang);
+  
+  const { 
+    isListening: contentIsListening, 
+    isSupported: contentIsSupported, 
+    error: contentError, 
+    transcript: contentTranscript,
+    startListening: startContentListening,
+    stopListening: stopContentListening 
+  } = useSpeechToText(speechLang);
+
+  const [originalTitle, setOriginalTitle] = useState('');
+  const [originalContent, setOriginalContent] = useState('');
+
+  // Handle real-time speech-to-text transcript updates
+  useEffect(() => {
+    if (titleIsListening) {
+      setTitle(originalTitle + (titleTranscript ? (originalTitle ? ' ' : '') + titleTranscript.trim() : ''));
+    }
+  }, [titleTranscript, titleIsListening, originalTitle]);
+
+  useEffect(() => {
+    if (contentIsListening) {
+      setContent(originalContent + (contentTranscript ? (originalContent ? ' ' : '') + contentTranscript.trim() : ''));
+    }
+  }, [contentTranscript, contentIsListening, originalContent]);
   
   // Auto-focus location if it's an emergency
   useEffect(() => {
@@ -133,35 +176,106 @@ export default function CreatePost() {
             </button>
           </div>
 
+          {/* Language selector for speech recognition */}
+          {(titleIsSupported || contentIsSupported) && (
+            <div className="flex items-center gap-2 mb-4 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+              <Mic className="w-4 h-4 text-gray-400 shrink-0" />
+              <span className="text-sm text-gray-500 shrink-0">Speech language:</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {SPEECH_LANGUAGES.map((l) => (
+                  <button
+                    key={l.code}
+                    type="button"
+                    onClick={() => setSpeechLang(l.code)}
+                    className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                      speechLang === l.code
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'bg-white border border-gray-200 text-gray-600 hover:border-primary-300 hover:text-primary-600'
+                    }`}
+                  >
+                    <span>{l.flag}</span>
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
+            <div className="relative">
               <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
                 {type === 'emergency' ? 'What happened?' : 'What do you need help with?'}
               </label>
-              <input
-                id="title"
-                required
-                type="text"
-                placeholder={type === 'emergency' ? "e.g., Car accident near highway, need immediate hospital suggestions" : "e.g., Looking for a good pediatrician in downtown"}
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-colors bg-gray-50 focus:bg-white"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  id="title"
+                  required
+                  type="text"
+                  placeholder={type === 'emergency' ? "e.g., Car accident near highway, need immediate hospital suggestions" : "e.g., Looking for a good pediatrician in downtown"}
+                  className={`w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-colors bg-gray-50 focus:bg-white ${titleIsListening ? 'border-red-300 ring-2 ring-red-200 bg-red-50/10' : ''}`}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all flex items-center justify-center ${
+                    titleIsListening 
+                      ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 scale-105 hover:bg-red-600 animate-pulse' 
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                  }`}
+                  onClick={() => {
+                    if (titleIsListening) {
+                      stopTitleListening();
+                    } else {
+                      setOriginalTitle(title);
+                      startTitleListening();
+                    }
+                  }}
+                  disabled={!titleIsSupported}
+                  title={titleIsListening ? 'Recording... Click to stop' : 'Click to dictate'}
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+                {titleError && <p className="mt-1 text-xs text-red-600 flex items-center"><AlertCircle className="w-3.5 h-3.5 mr-1" />{titleError}</p>}
+              </div>
             </div>
 
-            <div>
+            <div className="relative">
               <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
                 Details
               </label>
-              <textarea
-                id="content"
-                required
-                rows={5}
-                placeholder="Provide more context..."
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-colors bg-gray-50 focus:bg-white resize-none"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-              />
+              <div className="relative">
+                <textarea
+                  id="content"
+                  required
+                  rows={5}
+                  placeholder="Provide more context..."
+                  className={`w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-colors bg-gray-50 focus:bg-white resize-none ${contentIsListening ? 'border-red-300 ring-2 ring-red-200 bg-red-50/10' : ''}`}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className={`absolute right-2 top-2 p-2 rounded-lg transition-all flex items-center justify-center ${
+                    contentIsListening 
+                      ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 scale-105 hover:bg-red-600 animate-pulse' 
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                  }`}
+                  onClick={() => {
+                    if (contentIsListening) {
+                      stopContentListening();
+                    } else {
+                      setOriginalContent(content);
+                      startContentListening();
+                    }
+                  }}
+                  disabled={!contentIsSupported}
+                  title={contentIsListening ? 'Recording... Click to stop' : 'Click to dictate'}
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+                {contentError && <p className="mt-1 text-xs text-red-600 flex items-center"><AlertCircle className="w-3.5 h-3.5 mr-1" />{contentError}</p>}
+              </div>
             </div>
 
             {type === 'emergency' && (

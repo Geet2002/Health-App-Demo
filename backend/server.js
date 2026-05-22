@@ -720,6 +720,34 @@ app.delete('/api/blood-requests/:id', authenticate, async (req, res) => {
   }
 });
 
+// ======================= WHISPER SPEECH-TO-TEXT ROUTE =======================
+
+app.post('/api/whisper/transcribe', authenticate, async (req, res) => {
+  try {
+    const { transcribeAudio } = require('./services/whisperService');
+
+    // Check if audio data was sent
+    if (!req.body || !req.body.audio) {
+      return res.status(400).json({ error: 'No audio data provided' });
+    }
+
+    // Decode base64 audio data
+    const audioBuffer = Buffer.from(req.body.audio, 'base64');
+
+    // Optional language and mimeType parameters
+    const mimeType = req.body.mimeType || 'audio/webm';
+    const language = req.body.language || 'en';
+
+    // Transcribe using Whisper
+    const transcription = await transcribeAudio(audioBuffer, mimeType, language);
+
+    res.json({ text: transcription });
+  } catch (error) {
+    console.error('Whisper transcription error:', error);
+    res.status(500).json({ error: error.message || 'Transcription failed' });
+  }
+});
+
 // ======================= DELETE ROUTES =======================
 
 app.delete('/api/posts/:id', authenticate, async (req, res) => {

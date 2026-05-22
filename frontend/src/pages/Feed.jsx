@@ -51,9 +51,7 @@ export default function Feed() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 mb-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary-300 rounded-full blur-3xl opacity-20 -mr-20 -mt-20 pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-teal-200 rounded-full blur-3xl opacity-20 -ml-20 -mb-20 pointer-events-none"></div>
+      <div className="bg-white p-8 rounded-3xl shadow-lg border border-gray-50 mb-8 relative overflow-hidden">
         <div className="relative z-10">
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Community Feed</h1>
           <p className="text-gray-500 mt-2 text-lg">Discover queries and assist with health emergencies.</p>
