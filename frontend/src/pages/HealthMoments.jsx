@@ -4,7 +4,9 @@ import axios from 'axios';
 import { Heart, ThumbsDown, MessageCircle, Share2, Image as ImageIcon, Video, Mic, Send, X, Trash2 } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import { formatDistanceToNow } from 'date-fns';
+import MedicalBadge from '../components/MedicalBadge';
 import { useAuth } from '../context/AuthContext';
+import useSpeechToText from '../hooks/useSpeechToText';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -19,6 +21,24 @@ export default function HealthMoments() {
   const [mediaPreview, setMediaPreview] = useState(null);
   const [isPosting, setIsPosting] = useState(false);
   const fileInputRef = useRef(null);
+
+  const [speechLang, setSpeechLang] = useState('en-US');
+  const {
+    isListening,
+    isTranscribing,
+    transcript,
+    error: speechError,
+    startListening,
+    stopListening
+  } = useSpeechToText(speechLang);
+
+  useEffect(() => {
+    if (transcript) setContent((prev) => prev + (prev ? ' ' : '') + transcript);
+  }, [transcript]);
+
+  useEffect(() => {
+    if (speechError) toast.error(speechError);
+  }, [speechError]);
 
   // Comments State
   const [activeCommentId, setActiveCommentId] = useState(null);
@@ -187,20 +207,39 @@ export default function HealthMoments() {
                 </div>
               )}
 
-              <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between">
-                <div className="flex space-x-2 text-primary-600">
+              <div className="mt-4 pt-4 border-t border-gray-50 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0">
+                <div className="flex space-x-2 text-primary-600 items-center w-full sm:w-auto">
                   <button type="button" onClick={() => fileInputRef.current.click()} className="p-2 hover:bg-primary-50 rounded-full transition tooltip-trigger">
                     <ImageIcon className="w-5 h-5" />
                   </button>
                   <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
+
+                  <button 
+                    type="button" 
+                    onClick={isListening ? stopListening : startListening} 
+                    className={`p-2 rounded-full transition ${isListening || isTranscribing ? 'bg-red-100 text-red-600 animate-pulse' : 'hover:bg-primary-50'}`}
+                  >
+                    <Mic className="w-5 h-5" />
+                  </button>
+
+                  <select
+                    className="text-sm bg-transparent border-none text-gray-500 focus:ring-0 cursor-pointer p-0 pr-4"
+                    value={speechLang}
+                    onChange={(e) => setSpeechLang(e.target.value)}
+                    disabled={isListening || isTranscribing}
+                  >
+                    <option value="en-US">English</option>
+                    <option value="as-IN">Assamese</option>
+                    <option value="hi-IN">Hindi</option>
+                  </select>
                 </div>
                 
                 <button 
                   type="submit" 
-                  disabled={isPosting || (!content.trim() && !mediaFile)}
-                  className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-full font-bold shadow-sm transition-colors disabled:opacity-50"
+                  disabled={isPosting || isListening || isTranscribing || (!content.trim() && !mediaFile)}
+                  className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-full font-bold shadow-sm transition-colors disabled:opacity-50 w-full sm:w-auto"
                 >
-                  {isPosting ? 'Posting...' : 'Share'}
+                  {isPosting ? 'Posting...' : isTranscribing ? 'Transcribing...' : isListening ? 'Listening...' : 'Share'}
                 </button>
               </div>
             </div>
@@ -224,7 +263,10 @@ export default function HealthMoments() {
                     <Avatar src={share.author_profile_picture} name={share.author_name} size="w-10 h-10" />
                   </div>
                   <div>
+                  <div className="flex items-center">
                     <h3 className="font-bold text-gray-900">{share.author_name}</h3>
+                    <MedicalBadge isMedicalProfessional={share.is_medical_professional} />
+                  </div>
                     <p className="text-xs text-gray-500">{formatDistanceToNow(new Date(share.created_at))} ago</p>
                   </div>
                 </div>
@@ -290,7 +332,11 @@ export default function HealthMoments() {
                             {comment.author_name?.[0]?.toUpperCase()}
                           </div>
                           <div className="bg-white px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm text-sm border border-gray-100">
+                          <div className="flex items-center">
                             <span className="font-bold text-gray-900 mr-2">{comment.author_name}</span>
+                            <MedicalBadge isMedicalProfessional={comment.is_medical_professional} className="w-3.5 h-3.5 mr-2 text-blue-600" />
+                            <span className="text-xs text-gray-500">{formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}</span>
+                          </div>
                             <span className="text-gray-700">{comment.content}</span>
                           </div>
                         </div>

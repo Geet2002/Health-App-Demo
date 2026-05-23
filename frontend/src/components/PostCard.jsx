@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, HelpCircle, MessageCircle, MapPin, Clock, Trash2 } from 'lucide-react';
 import Avatar from './Avatar';
 import { formatDistanceToNow } from 'date-fns';
+import MedicalBadge from './MedicalBadge';
 
 export default function PostCard({ post, currentUser, onDelete }) {
   const isOwner = currentUser && post.author_id === currentUser.id;
@@ -19,7 +20,10 @@ export default function PostCard({ post, currentUser, onDelete }) {
             <div className="flex items-center space-x-3">
               <Avatar src={post.author_profile_picture} name={post.author_name} size="w-11 h-11" className="flex-shrink-0" />
               <div>
-                <div className="text-sm font-semibold text-gray-900">{post.author_name || 'Anonymous User'}</div>
+                <div className="text-sm font-semibold text-gray-900 flex items-center">
+                  {post.author_name || 'Anonymous User'}
+                  <MedicalBadge isMedicalProfessional={post.is_medical_professional} />
+                </div>
                 <div className="text-xs text-gray-400 flex items-center">
                   <Clock className="w-3.5 h-3.5 mr-1.5" />
                   {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}

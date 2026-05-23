@@ -110,7 +110,7 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
 app.get('/api/users/profile', authenticate, async (req, res) => {
   try {
     const [users] = await pool.query(
-      `SELECT id, username, created_at, birthdate, description, gender, profile_picture FROM users WHERE id = ?`, 
+      `SELECT id, username, created_at, birthdate, description, gender, profile_picture, is_medical_professional FROM users WHERE id = ?`, 
       [req.user.id]
     );
     if (users.length === 0) return res.status(404).json({ error: 'User not found' });
@@ -150,25 +150,52 @@ app.put('/api/users/profile', authenticate, upload.single('profile_picture'), as
   }
 });
 
+app.post('/api/users/me/verify-medical', authenticate, async (req, res) => {
+  try {
+    const { is_medical_professional } = req.body;
+    await pool.query(
+      `UPDATE users SET is_medical_professional = ? WHERE id = ?`,
+      [is_medical_professional ? 1 : 0, req.user.id]
+    );
+    res.json({ message: 'Verification status updated' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ======================= POST ROUTES (Legacy / Updated) =======================
 
 // Get all general posts (where community_id is null)
 app.get('/api/posts', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { filter } = req.query; // 'global', 'communities', or 'all'
+
+    let whereClause = `WHERE p.community_id IS NULL OR p.community_id IN (SELECT community_id FROM community_members WHERE user_id = ? AND status = 'approved')`;
+    
+    let queryParams = [];
+    if (filter === 'global') {
+      whereClause = `WHERE p.community_id IS NULL`;
+    } else if (filter === 'communities') {
+      whereClause = `WHERE p.community_id IN (SELECT community_id FROM community_members WHERE user_id = ? AND status = 'approved')`;
+      queryParams = [userId];
+    } else {
+      queryParams = [userId];
+    }
+
     const [rows] = await pool.query(`
-  SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, c.name as community_name,
+      SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional, c.name as community_name,
       (SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) as comment_count
       FROM posts p
       LEFT JOIN users u ON p.author_id = u.id
       LEFT JOIN communities c ON p.community_id = c.id
-      WHERE p.community_id IS NULL OR p.community_id IN (
-        SELECT community_id FROM community_members WHERE user_id = ? AND status = 'approved'
-      )
+      ${whereClause}
       ORDER BY 
         p.type = 'emergency' DESC, 
         p.created_at DESC
-    `, [userId]);
+    `, queryParams);
+
     res.json(rows);
   } catch (error) {
     console.error(error);
@@ -216,7 +243,7 @@ app.get('/api/posts/:id', authenticate, async (req, res) => {
     const userId = req.user.id;
     
     const [posts] = await pool.query(`
-      SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, c.name as community_name
+      SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional, c.name as community_name
       FROM posts p 
       LEFT JOIN users u ON p.author_id = u.id 
       LEFT JOIN communities c ON p.community_id = c.id
@@ -226,7 +253,7 @@ app.get('/api/posts/:id', authenticate, async (req, res) => {
     if (posts.length === 0) return res.status(404).json({ error: 'Not found' });
 
     const [comments] = await pool.query(`
-      SELECT c.*, u.username as author_name, u.profile_picture as author_profile_picture,
+      SELECT c.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional,
       (SELECT vote_type FROM comment_votes cv WHERE cv.comment_id = c.id AND cv.user_id = ?) as user_vote
       FROM comments c LEFT JOIN users u ON c.author_id = u.id 
       WHERE c.post_id = ? ORDER BY c.created_at ASC
@@ -487,6 +514,101 @@ app.post('/api/communities/:id/admin', authenticate, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+// ======================= COMMUNITY ENHANCEMENTS (EVENTS & RESOURCES) =======================
+
+app.get('/api/communities/:id/events', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [events] = await pool.query(`
+      SELECT e.*, u.username as creator_name,
+      (SELECT COUNT(*) FROM event_attendees ea WHERE ea.event_id = e.id) as attendee_count,
+      (SELECT COUNT(*) FROM event_attendees ea WHERE ea.event_id = e.id AND ea.user_id = ?) as user_attending
+      FROM community_events e
+      JOIN users u ON e.created_by = u.id
+      WHERE e.community_id = ?
+      ORDER BY e.event_date ASC
+    `, [req.user.id, id]);
+    res.json(events);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/communities/:id/events', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, event_date, location } = req.body;
+    
+    // Check if user is admin
+    const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
+    if (adminCheck.length === 0 || adminCheck[0].role !== 'admin') return res.status(403).json({ error: 'Only admins can create events' });
+
+    const [result] = await pool.query(
+      `INSERT INTO community_events (community_id, created_by, title, description, event_date, location) VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, req.user.id, title, description, event_date, location]
+    );
+    res.json({ id: result.insertId, message: 'Event created successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/events/:eventId/rsvp', authenticate, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { attending } = req.body;
+
+    if (attending) {
+      await pool.query(`INSERT IGNORE INTO event_attendees (event_id, user_id) VALUES (?, ?)`, [eventId, req.user.id]);
+      res.json({ message: 'RSVP successful' });
+    } else {
+      await pool.query(`DELETE FROM event_attendees WHERE event_id = ? AND user_id = ?`, [eventId, req.user.id]);
+      res.json({ message: 'RSVP cancelled' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/communities/:id/resources', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [resources] = await pool.query(`
+      SELECT r.*, u.username as creator_name
+      FROM community_resources r
+      JOIN users u ON r.created_by = u.id
+      WHERE r.community_id = ?
+      ORDER BY r.created_at DESC
+    `, [id]);
+    res.json(resources);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/communities/:id/resources', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, content, link } = req.body;
+    
+    // Check if user is admin
+    const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
+    if (adminCheck.length === 0 || adminCheck[0].role !== 'admin') return res.status(403).json({ error: 'Only admins can add resources' });
+
+    const [result] = await pool.query(
+      `INSERT INTO community_resources (community_id, created_by, title, content, link) VALUES (?, ?, ?, ?, ?)`,
+      [id, req.user.id, title, content, link || null]
+    );
+    res.json({ id: result.insertId, message: 'Resource added successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // ======================= NOTIFICATION ROUTES =======================
 
@@ -574,7 +696,7 @@ app.get('/api/blood-requests/:id', authenticate, async (req, res) => {
 
     // Get comments
     const [comments] = await pool.query(`
-      SELECT c.*, u.username as author_name, u.profile_picture as author_profile_picture 
+      SELECT c.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional 
       FROM blood_request_comments c 
       JOIN users u ON c.author_id = u.id 
       WHERE c.request_id = ? 
@@ -797,7 +919,7 @@ app.get('/api/health-shares', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const [rows] = await pool.query(`
-      SELECT hs.*, u.username as author_name, u.profile_picture as author_profile_picture,
+      SELECT hs.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional,
       (SELECT COUNT(*) FROM health_share_comments hsc WHERE hsc.share_id = hs.id) as comment_count,
       (SELECT vote_type FROM health_share_votes hsv WHERE hsv.share_id = hs.id AND hsv.user_id = ?) as user_vote
       FROM health_shares hs

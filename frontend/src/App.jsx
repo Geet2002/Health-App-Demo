@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, ToastBar, toast } from 'react-hot-toast';
+import { X } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
@@ -95,7 +96,26 @@ function App() {
               },
             },
           }} 
-        />
+        >
+          {(t) => (
+            <ToastBar toast={t}>
+              {({ icon, message }) => (
+                <>
+                  {icon}
+                  {message}
+                  {t.type !== 'loading' && (
+                    <button 
+                      onClick={() => toast.dismiss(t.id)} 
+                      className="ml-4 p-1 hover:bg-white/20 rounded-full transition-colors focus:outline-none"
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+                  )}
+                </>
+              )}
+            </ToastBar>
+          )}
+        </Toaster>
         <AppContent />
       </AuthProvider>
     </BrowserRouter>

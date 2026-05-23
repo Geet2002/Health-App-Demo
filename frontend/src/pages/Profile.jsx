@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Camera, User as UserIcon, Calendar, Info, Users } from 'lucide-react';
+import { Camera, User as UserIcon, Calendar, Info, Users, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+
+import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -11,7 +13,8 @@ export default function Profile() {
     birthdate: '',
     description: '',
     gender: '',
-    profile_picture: null
+    profile_picture: null,
+    is_medical_professional: false
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -33,7 +36,8 @@ export default function Profile() {
         birthdate: data.birthdate ? new Date(data.birthdate).toISOString().split('T')[0] : '',
         description: data.description || '',
         gender: data.gender || '',
-        profile_picture: data.profile_picture || null
+        profile_picture: data.profile_picture || null,
+        is_medical_professional: !!data.is_medical_professional
       });
       if (data.profile_picture) {
         setImagePreview(`${API_URL.replace('/api', '')}${data.profile_picture}`);
@@ -81,6 +85,17 @@ export default function Profile() {
     }
   };
 
+  const handleToggleMedical = async () => {
+    const newValue = !profile.is_medical_professional;
+    try {
+      await axios.post(`${API_URL}/users/me/verify-medical`, { is_medical_professional: newValue });
+      setProfile(p => ({ ...p, is_medical_professional: newValue }));
+      toast.success(newValue ? 'Medical Badge Added!' : 'Medical Badge Removed');
+    } catch (err) {
+      toast.error('Failed to update verification status');
+    }
+  };
+
   if (loading) return <div className="text-center py-12">Loading...</div>;
 
   return (
@@ -123,6 +138,26 @@ export default function Profile() {
               accept="image/*" 
               onChange={handleImageChange} 
             />
+          </div>
+
+          {/* Medical Badge Verification */}
+          <div className="bg-blue-50 rounded-2xl p-6 mb-8 border border-blue-100 flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="bg-blue-100 p-3 rounded-xl mr-4">
+                <ShieldCheck className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg">Medical Professional</h3>
+                <p className="text-gray-600 text-sm">Verify your identity to get a badge next to your name.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleMedical}
+              className={`px-5 py-2.5 rounded-xl font-bold transition-colors ${profile.is_medical_professional ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}
+            >
+              {profile.is_medical_professional ? 'Verified' : 'Verify Me'}
+            </button>
           </div>
 
           <div className="space-y-6">

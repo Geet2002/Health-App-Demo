@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
+import MedicalBadge from '../components/MedicalBadge';
 import { AlertTriangle, HelpCircle, MapPin, Send, ArrowLeft, User, Clock, Trash2, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import { useAuth } from '../context/AuthContext';
@@ -31,8 +32,11 @@ const CommentItem = ({ comment, allComments, user, onReply, onDelete, onVote, de
             <User className="w-4 h-4 text-primary-600" />
           </div>
           <div className="flex-1">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-bold text-gray-900 text-sm">{comment.author_name || 'Community Member'}</span>
+            <div className="flex justify-between items-start mb-2">
+              <span className="font-bold text-gray-900 text-sm flex items-center">
+                {comment.author_name || 'Community Member'}
+                <MedicalBadge isMedicalProfessional={comment.is_medical_professional} />
+              </span>
               <div className="flex items-center space-x-3">
                 <span className="text-xs text-gray-400">
                   {comment.created_at ? formatDistanceToNow(new Date(comment.created_at), { addSuffix: true }) : 'Just now'}
@@ -295,7 +299,10 @@ export default function PostDetail() {
           <div className="mt-8 pt-6 border-t border-gray-100 flex items-center text-gray-600">
             <Avatar src={post.author_profile_picture} name={post.author_name} size="w-12 h-12" className="mr-3" />
             <div>
-              <p className="text-sm font-semibold text-gray-900">{post.author_name || 'Anonymous User'}</p>
+              <p className="text-sm font-semibold text-gray-900 flex items-center">
+                {post.author_name || 'Anonymous User'}
+                <MedicalBadge isMedicalProfessional={post.is_medical_professional} />
+              </p>
               <p className="text-xs text-gray-500">{post.community_name ? 'Community Member' : 'Global User'}</p>
             </div>
           </div>
