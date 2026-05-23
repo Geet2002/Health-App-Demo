@@ -18,8 +18,8 @@ const RECOGNIZER_PATH = `projects/${PROJECT_ID}/locations/${LOCATION}/recognizer
 
 // Map frontend language codes to Google Cloud STT config
 const LANGUAGE_CONFIG = {
-  'en-US': { languageCodes: ['en-US'], model: 'latest_short' },
-  'hi-IN': { languageCodes: ['hi-IN'], model: 'latest_short' },
+  'en-US': { languageCodes: ['en-US'], model: 'chirp' },
+  'hi-IN': { languageCodes: ['hi-IN'], model: 'chirp' },
   'as-IN': { languageCodes: ['as-IN'], model: 'chirp' }, // True Assamese via Chirp
 };
 
