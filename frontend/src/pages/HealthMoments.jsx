@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Heart, ThumbsDown, MessageCircle, Share2, Image as ImageIcon, Video, Mic, Send, X, Trash2 } from 'lucide-react';
 import Avatar from '../components/Avatar';
+import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import MedicalBadge from '../components/MedicalBadge';
 import { useAuth } from '../context/AuthContext';
@@ -260,11 +261,15 @@ export default function HealthMoments() {
               <div className="p-4 sm:p-6 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10">
-                    <Avatar src={share.author_profile_picture} name={share.author_name} size="w-10 h-10" />
+                    <Link to={`/user/${share.author_id}`} className="hover:opacity-80 transition-opacity">
+                      <Avatar src={share.author_profile_picture} name={share.author_name} size="w-10 h-10" />
+                    </Link>
                   </div>
                   <div>
                   <div className="flex items-center">
-                    <h3 className="font-bold text-gray-900">{share.author_name}</h3>
+                    <Link to={`/user/${share.author_id}`} className="font-bold text-gray-900 hover:text-primary-600 transition-colors">
+                      {share.author_name}
+                    </Link>
                     <MedicalBadge isMedicalProfessional={share.is_medical_professional} />
                   </div>
                     <p className="text-xs text-gray-500">{formatDistanceToNow(new Date(share.created_at))} ago</p>
@@ -328,12 +333,20 @@ export default function HealthMoments() {
                     ) : (
                       comments[share.id]?.map(comment => (
                         <div key={comment.id} className="flex space-x-3">
-                           <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-xs shrink-0">
-                            {comment.author_name?.[0]?.toUpperCase()}
+                           <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-xs shrink-0 overflow-hidden">
+                            <Link to={`/user/${comment.author_id}`} className="w-full h-full flex items-center justify-center hover:bg-gray-300 transition-colors">
+                              {comment.author_profile_picture ? (
+                                <img src={`http://localhost:5001${comment.author_profile_picture}`} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                comment.author_name?.[0]?.toUpperCase()
+                              )}
+                            </Link>
                           </div>
                           <div className="bg-white px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm text-sm border border-gray-100">
                           <div className="flex items-center">
-                            <span className="font-bold text-gray-900 mr-2">{comment.author_name}</span>
+                            <Link to={`/user/${comment.author_id}`} className="font-bold text-gray-900 mr-2 hover:text-primary-600 transition-colors">
+                              {comment.author_name}
+                            </Link>
                             <MedicalBadge isMedicalProfessional={comment.is_medical_professional} className="w-3.5 h-3.5 mr-2 text-blue-600" />
                             <span className="text-xs text-gray-500">{formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}</span>
                           </div>

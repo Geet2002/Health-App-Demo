@@ -10,20 +10,23 @@ export default function PostCard({ post, currentUser, onDelete }) {
   const isEmergency = post.type === 'emergency';
 
   return (
-    <Link key={post.id} to={`/post/${post.id}`} className="group block outline-none">
-      <article className={`flex bg-white border rounded-2xl overflow-hidden transition-all duration-300 ${isEmergency ? 'border-emergency-300 shadow-lg' : 'border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5'}`}>
+    <div className="relative group outline-none">
+      <Link to={`/post/${post.id}`} className="absolute inset-0 z-0" aria-label="View post details"></Link>
+      <article className={`relative z-10 flex bg-white border rounded-2xl overflow-hidden transition-all duration-300 ${isEmergency ? 'border-emergency-300 shadow-lg' : 'border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5'}`}>
         {/* left accent */}
         <div className={`w-1 ${isEmergency ? 'bg-red-500' : 'bg-primary-500'} hidden sm:block`} />
 
         <div className="p-5 sm:p-6 flex-1 relative">
           <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center space-x-3">
-              <Avatar src={post.author_profile_picture} name={post.author_name} size="w-11 h-11" className="flex-shrink-0" />
+            <div className="flex items-center space-x-3 relative z-20">
+              <Link to={`/user/${post.author_id}`} className="flex-shrink-0 hover:opacity-80 transition-opacity">
+                <Avatar src={post.author_profile_picture} name={post.author_name} size="w-11 h-11" />
+              </Link>
               <div>
-                <div className="text-sm font-semibold text-gray-900 flex items-center">
+                <Link to={`/user/${post.author_id}`} className="text-sm font-semibold text-gray-900 flex items-center hover:text-primary-600 transition-colors">
                   {post.author_name || 'Anonymous User'}
                   <MedicalBadge isMedicalProfessional={post.is_medical_professional} />
-                </div>
+                </Link>
                 <div className="text-xs text-gray-400 flex items-center">
                   <Clock className="w-3.5 h-3.5 mr-1.5" />
                   {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
@@ -31,7 +34,7 @@ export default function PostCard({ post, currentUser, onDelete }) {
               </div>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 relative z-20">
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase ${isEmergency ? 'bg-red-100 text-red-700' : 'bg-primary-50 text-primary-700 border border-primary-100'}`}>
                 {isEmergency ? <AlertTriangle className="w-4 h-4 mr-1.5" /> : <HelpCircle className="w-4 h-4 mr-1.5" />}
                 {isEmergency ? 'Emergency' : 'Query'}
@@ -49,7 +52,7 @@ export default function PostCard({ post, currentUser, onDelete }) {
 
           <p className="text-gray-600 text-sm mb-4 line-clamp-3">{post.content}</p>
 
-          <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-50">
+          <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-50 relative z-20">
             <div className="flex items-center text-sm text-gray-500 flex-wrap gap-2">
               {post.community_name && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-gray-50 text-gray-600 border border-gray-100">{post.community_name}</span>
@@ -70,6 +73,6 @@ export default function PostCard({ post, currentUser, onDelete }) {
           </div>
         </div>
       </article>
-    </Link>
+    </div>
   );
 }

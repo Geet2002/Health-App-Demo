@@ -41,8 +41,8 @@ export function AuthProvider({ children }) {
     setUser(res.data.user);
   };
 
-  const signup = async (username, password) => {
-    const res = await axios.post(`${API_URL}/auth/signup`, { username, password });
+  const signup = async (username, email, password) => {
+    const res = await axios.post(`${API_URL}/auth/signup`, { username, email, password });
     localStorage.setItem('token', res.data.token);
     setUser(res.data.user);
   };

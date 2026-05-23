@@ -4,6 +4,7 @@ import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import Avatar from '../components/Avatar';
 import { Droplet, MapPin, Clock, User, Phone, Mail, MessageSquare, Send, CheckCircle, ArrowLeft, Trash2, Heart } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
@@ -326,12 +327,8 @@ export default function BloodRequestDetails() {
               <div key={offer.id} className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold overflow-hidden border border-red-200">
-                      {offer.donor_profile_picture ? (
-                        <img src={`http://localhost:5001${offer.donor_profile_picture}`} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        offer.donor_name.charAt(0).toUpperCase()
-                      )}
+                    <div className="w-10 h-10">
+                      <Avatar src={offer.donor_profile_picture} name={offer.donor_name} size="w-10 h-10" />
                     </div>
                     <div>
                       <p className="font-bold text-gray-900">{offer.donor_name}</p>
@@ -377,12 +374,8 @@ export default function BloodRequestDetails() {
             <div className="space-y-6">
               {comments.map(comment => (
                 <div key={comment.id} className="flex space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200 flex items-center justify-center text-gray-500 font-bold">
-                    {comment.author_profile_picture ? (
-                      <img src={`http://localhost:5001${comment.author_profile_picture}`} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      comment.author_name.charAt(0).toUpperCase()
-                    )}
+                  <div className="w-10 h-10">
+                    <Avatar src={comment.author_profile_picture} name={comment.author_name} size="w-10 h-10" />
                   </div>
                   <div className="flex-1 bg-gray-50 p-4 rounded-2xl rounded-tl-none border border-gray-100">
                     <div className="flex justify-between items-start mb-1">
@@ -404,12 +397,8 @@ export default function BloodRequestDetails() {
           {/* Add Comment Form */}
           {request.status === 'pending' ? (
             <form onSubmit={handleCommentSubmit} className="mt-6 flex items-start space-x-3">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200 flex items-center justify-center text-gray-500 font-bold">
-                {user?.profile_picture ? (
-                  <img src={`http://localhost:5001${user.profile_picture}`} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  user?.username?.charAt(0).toUpperCase() || 'U'
-                )}
+              <div className="w-10 h-10 mt-1">
+                <Avatar src={user?.profile_picture} name={user?.username} size="w-10 h-10" />
               </div>
               <div className="flex-1 relative">
                 <input

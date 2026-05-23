@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { HeartPulse, Heart, Users, Droplets, ArrowLeft } from 'lucide-react';
+import { HeartPulse, Heart, Users, Droplets, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
 export default function Auth() {
   const location = useLocation();
@@ -10,8 +10,10 @@ export default function Auth() {
 
   // Derive active tab from the URL path
   const [isLogin, setIsLogin] = useState(location.pathname !== '/signup');
+  const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -23,8 +25,10 @@ export default function Auth() {
   const switchTo = (loginMode) => {
     setIsLogin(loginMode);
     setError('');
+    setEmail('');
     setUsername('');
     setPassword('');
+    setShowPassword(false);
     navigate(loginMode ? '/login' : '/signup', { replace: true });
   };
 
@@ -36,7 +40,7 @@ export default function Auth() {
       if (isLogin) {
         await login(username, password);
       } else {
-        await signup(username, password);
+        await signup(username, email, password);
       }
       navigate('/feed');
     } catch (err) {
@@ -173,14 +177,30 @@ export default function Auth() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
+            {!isLogin && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Email Address
+                </label>
+                <input
+                  required
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-sm"
+                />
+              </div>
+            )}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Username
+                {isLogin ? 'Username or Email' : 'Username'}
+                <span className="text-xs text-gray-400 ml-2 font-normal">(Case-sensitive)</span>
               </label>
               <input
                 required
                 type="text"
-                placeholder={isLogin ? 'Enter your username' : 'Choose a username'}
+                placeholder={isLogin ? 'Enter your username or email' : 'Choose a username'}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-sm"
@@ -190,14 +210,23 @@ export default function Auth() {
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Password
               </label>
-              <input
-                required
-                type="password"
-                placeholder={isLogin ? 'Enter your password' : 'Create a strong password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-sm"
-              />
+              <div className="relative">
+                <input
+                  required
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder={isLogin ? 'Enter your password' : 'Create a strong password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-4 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
 
             {isLogin && (

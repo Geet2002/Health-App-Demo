@@ -55,13 +55,15 @@ const authenticate = (req, res, next) => {
 
 app.post('/api/auth/signup', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, email, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const finalEmail = email || null;
+
     const [result] = await pool.query(
-      `INSERT INTO users (username, password_hash) VALUES (?, ?)`,
-      [username, hashedPassword]
+      `INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)`,
+      [username, finalEmail, hashedPassword]
     );
 
     const token = jwt.sign({ id: result.insertId, username }, JWT_SECRET, { expiresIn: '7d' });
@@ -76,7 +78,7 @@ app.post('/api/auth/signup', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    const [users] = await pool.query(`SELECT * FROM users WHERE username = ?`, [username]);
+    const [users] = await pool.query(`SELECT * FROM users WHERE username = ? OR (email = ? AND email IS NOT NULL)`, [username, username]);
     if (users.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
 
     const user = users[0];
@@ -1040,6 +1042,39 @@ app.delete('/api/health-shares/:id', authenticate, async (req, res) => {
     await pool.query('DELETE FROM health_shares WHERE id = ?', [id]);
     res.json({ message: 'Post deleted' });
   } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Public User Profile
+app.get('/api/users/:id/public', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get public info
+    const [users] = await pool.query(
+      `SELECT id, username, created_at, description, gender, profile_picture, is_medical_professional FROM users WHERE id = ?`, 
+      [id]
+    );
+    if (users.length === 0) return res.status(404).json({ error: 'User not found' });
+    
+    // Get their recent public posts
+    const [posts] = await pool.query(
+      `SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional,
+       (SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) as comment_count
+       FROM posts p
+       JOIN users u ON p.author_id = u.id
+       WHERE p.author_id = ? AND p.community_id IS NULL
+       ORDER BY p.created_at DESC LIMIT 10`,
+       [id]
+    );
+    
+    res.json({
+      user: users[0],
+      recent_posts: posts
+    });
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Server error' });
   }
 });

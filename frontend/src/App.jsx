@@ -22,6 +22,7 @@ import CreateBloodRequest from './pages/CreateBloodRequest';
 import BloodRequestDetails from './pages/BloodRequestDetails';
 import HealthMoments from './pages/HealthMoments';
 import Profile from './pages/Profile';
+import UserPublicProfile from './pages/UserPublicProfile';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -58,6 +59,7 @@ function AppContent() {
               <Route path="/blood-donation/:id" element={<ProtectedRoute><BloodRequestDetails /></ProtectedRoute>} />
               <Route path="/health-moments" element={<ProtectedRoute><HealthMoments /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+              <Route path="/user/:id" element={<ProtectedRoute><UserPublicProfile /></ProtectedRoute>} />
               
               <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
             </Routes>
