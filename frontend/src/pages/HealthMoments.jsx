@@ -7,11 +7,13 @@ import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import MedicalBadge from '../components/MedicalBadge';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
 import useSpeechToText from '../hooks/useSpeechToText';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 export default function HealthMoments() {
+  const confirm = useConfirm();
   const [shares, setShares] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
@@ -99,10 +101,19 @@ export default function HealthMoments() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this post?')) return;
+    const ok = await confirm({
+      title: 'Delete Share',
+      message: 'Are you sure you want to delete this health share post? This action is permanent and cannot be undone.',
+      confirmText: 'Delete Post',
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow-md',
+      type: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await axios.delete(`${API_URL}/health-shares/${id}`);
       setShares(shares.filter(s => s.id !== id));
+      toast.success('Share deleted successfully');
     } catch (err) {
       toast.error('Error deleting');
     }

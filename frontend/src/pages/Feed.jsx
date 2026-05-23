@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
 import PostCard from '../components/PostCard';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
@@ -40,6 +41,7 @@ function FeedSkeleton() {
 }
 
 export default function Feed() {
+  const confirm = useConfirm();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all', 'global', 'communities'
@@ -89,7 +91,15 @@ export default function Feed() {
   const handleDeletePost = async (e, id) => {
     e.preventDefault();
     e.stopPropagation();
-    if(!window.confirm('Delete this post?')) return;
+    const ok = await confirm({
+      title: 'Delete Post',
+      message: 'Are you sure you want to delete this post? This will permanently remove its contents and comments.',
+      confirmText: 'Delete Post',
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow-md',
+      type: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await axios.delete(`${API_URL}/posts/${id}`);
       setPosts(posts.filter(p => p.id !== id));

@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import Avatar from '../components/Avatar';
 import { Droplet, MapPin, Clock, User, Phone, Mail, MessageSquare, Send, CheckCircle, ArrowLeft, Trash2, Heart } from 'lucide-react';
+import { useConfirm } from '../context/ConfirmContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -13,6 +14,7 @@ export default function BloodRequestDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const confirm = useConfirm();
   
   const [request, setRequest] = useState(null);
   const [comments, setComments] = useState([]);
@@ -59,9 +61,18 @@ export default function BloodRequestDetails() {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this blood request? This action cannot be undone.')) return;
+    const ok = await confirm({
+      title: 'Delete Blood Request',
+      message: 'Are you sure you want to delete this blood donation request? This action cannot be undone and will permanently remove it.',
+      confirmText: 'Delete Request',
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow-md',
+      type: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await axios.delete(`${API_URL}/blood-requests/${id}`);
+      toast.success('Blood request deleted successfully');
       navigate('/blood-donation');
     } catch (error) {
       console.error('Error deleting request:', error);
@@ -100,7 +111,15 @@ export default function BloodRequestDetails() {
   };
 
   const handleWithdrawOffer = async () => {
-    if (!window.confirm('Are you sure you want to withdraw your donation offer?')) return;
+    const ok = await confirm({
+      title: 'Withdraw Donation Offer',
+      message: 'Are you sure you want to withdraw your donation offer? The requester will no longer be able to view your contact information for this donation.',
+      confirmText: 'Withdraw Offer',
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow-md',
+      type: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await axios.delete(`${API_URL}/blood-requests/${id}/offers`);
       toast.success('Donation offer withdrawn successfully');

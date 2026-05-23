@@ -436,16 +436,20 @@ app.get('/api/communities/:id', async (req, res) => {
 app.get('/api/communities/:id/posts', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
     const [rows] = await pool.query(`
-      SELECT p.*, u.username as author_name,
-      (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count
+      SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional, c.name as community_name,
+      (SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) as comment_count,
+      (SELECT COUNT(*) FROM post_votes pv WHERE pv.post_id = p.id) as vote_count,
+      (SELECT vote_type FROM post_votes pv WHERE pv.post_id = p.id AND pv.user_id = ?) as user_vote
       FROM posts p
       LEFT JOIN users u ON p.author_id = u.id
+      LEFT JOIN communities c ON p.community_id = c.id
       WHERE p.community_id = ?
       ORDER BY 
         p.type = 'emergency' DESC, 
         p.created_at DESC
-    `, [id]);
+    `, [userId, id]);
     res.json(rows);
   } catch (error) {
     console.error(error);
@@ -637,6 +641,24 @@ app.post('/api/events/:eventId/rsvp', authenticate, async (req, res) => {
       await pool.query(`DELETE FROM event_attendees WHERE event_id = ? AND user_id = ?`, [eventId, req.user.id]);
       res.json({ message: 'RSVP cancelled' });
     }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/events/:eventId/attendees', authenticate, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const [attendees] = await pool.query(
+      `SELECT u.id, u.username, u.profile_picture, u.is_medical_professional 
+       FROM users u 
+       JOIN event_attendees ea ON u.id = ea.user_id 
+       WHERE ea.event_id = ? 
+       ORDER BY ea.created_at ASC`,
+      [eventId]
+    );
+    res.json(attendees);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
@@ -1022,6 +1044,41 @@ app.delete('/api/communities/:id', authenticate, async (req, res) => {
     await pool.query('DELETE FROM communities WHERE id = ?', [id]);
     res.json({ message: 'Community deleted' });
   } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/communities/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Community name is required' });
+    }
+
+    // Check if the user is an admin of the community
+    const [adminCheck] = await pool.query(
+      `SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`,
+      [id, req.user.id]
+    );
+
+    if (adminCheck.length === 0 || adminCheck[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Only community admins can edit community details' });
+    }
+
+    // Update community
+    await pool.query(
+      `UPDATE communities SET name = ?, description = ? WHERE id = ?`,
+      [name.trim(), description ? description.trim() : null, id]
+    );
+
+    res.json({ message: 'Community updated successfully', name: name.trim(), description: description ? description.trim() : null });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'Community name already exists' });
+    }
+    console.error(error);
     res.status(500).json({ error: 'Server error' });
   }
 });

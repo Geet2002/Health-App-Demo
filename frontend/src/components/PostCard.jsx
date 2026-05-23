@@ -41,7 +41,7 @@ const cleanCoordinates = (str) => {
   return str;
 };
 
-export default function PostCard({ post, currentUser, onDelete, onVote }) {
+export default function PostCard({ post, currentUser, onDelete, onVote, hideCommunityName = false }) {
   const isOwner = currentUser && post.author_id === currentUser.id;
   const isEmergency = post.type === 'emergency';
 
@@ -171,7 +171,7 @@ export default function PostCard({ post, currentUser, onDelete, onVote }) {
           {/* Actions & Meta Data Row */}
           <div className="flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:items-center sm:justify-between mt-auto pt-3.5 border-t border-gray-50 relative z-30 pointer-events-auto">
             <div className="flex items-center text-xs text-gray-500 flex-wrap gap-2 w-full sm:w-auto">
-              {post.community_name && (
+              {post.community_name && !hideCommunityName && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-50 text-gray-600 border border-gray-150">
                   {post.community_name}
                 </span>

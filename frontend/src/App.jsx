@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Toaster, ToastBar, toast } from 'react-hot-toast';
 import { X } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ConfirmProvider } from './context/ConfirmContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import Feed from './pages/Feed';
@@ -131,7 +132,9 @@ function App() {
             </ToastBar>
           )}
         </Toaster>
-        <AppContent />
+        <ConfirmProvider>
+          <AppContent />
+        </ConfirmProvider>
       </AuthProvider>
     </BrowserRouter>
   );

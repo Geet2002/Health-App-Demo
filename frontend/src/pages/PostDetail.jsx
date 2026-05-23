@@ -8,6 +8,7 @@ import { AlertTriangle, HelpCircle, MapPin, Send, ArrowLeft, User, Clock, Trash2
 import Avatar from '../components/Avatar';
 import { useAuth } from '../context/AuthContext';
 import GoogleMap from '../components/GoogleMap';
+import { useConfirm } from '../context/ConfirmContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -109,6 +110,7 @@ const CommentItem = ({ comment, allComments, user, onReply, onDelete, onVote, de
 export default function PostDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const { user } = useAuth();
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
@@ -162,18 +164,36 @@ export default function PostDetail() {
   };
 
   const handleDeletePost = async () => {
-    if(!window.confirm('Delete this post?')) return;
+    const ok = await confirm({
+      title: 'Delete Post',
+      message: 'Are you sure you want to delete this post? This will permanently remove the post, comments, and all related content.',
+      confirmText: 'Delete Post',
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow-md',
+      type: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await axios.delete(`${API_URL}/posts/${id}`);
+      toast.success('Post deleted successfully');
       navigate('/');
     } catch (err) { toast.error('Error deleting post'); }
   };
 
   const handleDeleteComment = async (commentId) => {
-    if(!window.confirm('Delete this comment?')) return;
+    const ok = await confirm({
+      title: 'Delete Comment',
+      message: 'Are you sure you want to delete this comment? This will permanently delete the comment and its replies.',
+      confirmText: 'Delete Comment',
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow-md',
+      type: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await axios.delete(`${API_URL}/comments/${commentId}`);
       setComments(comments.filter(c => c.id !== commentId && c.parent_id !== commentId));
+      toast.success('Comment deleted successfully');
       fetchPostDetails(); // refetch to clean up deeply nested children
     } catch (err) { toast.error('Error deleting comment'); }
   };

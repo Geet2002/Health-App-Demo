@@ -4,9 +4,12 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
-import { Shield, Users, Lock, Unlock, Check, X, ShieldAlert, Trash2, MessageCircle, MapPin, Clock, AlertTriangle, HelpCircle, PlusCircle, Calendar, BookOpen, ExternalLink, Link as LinkIcon } from 'lucide-react';
+import { Shield, Users, Lock, Unlock, Check, X, ShieldAlert, Trash2, MessageCircle, MapPin, Clock, AlertTriangle, HelpCircle, PlusCircle, Calendar, BookOpen, ExternalLink, Link as LinkIcon, Edit2 } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import MedicalBadge from '../components/MedicalBadge';
+import PostCard from '../components/PostCard';
+
+import { useConfirm } from '../context/ConfirmContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -14,6 +17,7 @@ export default function CommunityDetail() {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
   const [comm, setComm] = useState(null);
   const [posts, setPosts] = useState([]);
@@ -21,6 +25,28 @@ export default function CommunityDetail() {
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'feed'); // feed, events, resources, members
+
+  // Editing community name and bio state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', description: '' });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // Active Event Details modal state
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [attendees, setAttendees] = useState([]);
+  const [loadingAttendees, setLoadingAttendees] = useState(false);
+
+  const fetchAttendees = async (eventId) => {
+    setLoadingAttendees(true);
+    try {
+      const res = await axios.get(`${API_URL}/events/${eventId}/attendees`);
+      setAttendees(res.data);
+    } catch (err) {
+      console.error('Error fetching attendees:', err);
+    } finally {
+      setLoadingAttendees(false);
+    }
+  };
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -50,6 +76,7 @@ export default function CommunityDetail() {
     try {
       const res = await axios.get(`${API_URL}/communities/${id}`);
       setComm(res.data);
+      setEditForm({ name: res.data.name, description: res.data.description || '' });
       const postRes = await axios.get(`${API_URL}/communities/${id}/posts`);
       setPosts(postRes.data);
       const eventRes = await axios.get(`${API_URL}/communities/${id}/events`);
@@ -61,6 +88,46 @@ export default function CommunityDetail() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editForm.name.trim()) {
+      toast.error('Community name is required');
+      return;
+    }
+    setIsSavingEdit(true);
+    try {
+      const res = await axios.put(`${API_URL}/communities/${id}`, editForm);
+      toast.success(res.data.message || 'Community updated successfully!');
+      setIsEditing(false);
+      fetchDetail();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update community');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleDeletePost = async (e, postId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const ok = await confirm({
+      title: 'Delete Post',
+      message: 'Are you sure you want to delete this post? This will permanently remove its contents and comments.',
+      confirmText: 'Delete Post',
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow-md',
+      type: 'danger'
+    });
+    if (!ok) return;
+
+    try {
+      await axios.delete(`${API_URL}/posts/${postId}`);
+      setPosts(posts.filter(p => p.id !== postId));
+      toast.success('Post deleted successfully');
+    } catch (err) {
+      toast.error('Error deleting post');
     }
   };
 
@@ -88,9 +155,18 @@ export default function CommunityDetail() {
   };
 
   const makeAdmin = async (targetUserId) => {
-    if(!window.confirm('Make this user an admin?')) return;
+    const ok = await confirm({
+      title: 'Promote to Admin',
+      message: 'Are you sure you want to promote this member to a community admin? They will gain full privileges to edit community details, manage resources, and host events.',
+      confirmText: 'Promote to Admin',
+      confirmColor: 'bg-primary-600 hover:bg-primary-700 text-white shadow-sm hover:shadow-md',
+      type: 'info'
+    });
+    if (!ok) return;
+
     try {
       await axios.post(`${API_URL}/communities/${id}/admin`, { targetUserId });
+      toast.success('User promoted to admin!');
       fetchDetail();
     } catch (err) {
       toast.error('Error promoting to admin');
@@ -98,9 +174,18 @@ export default function CommunityDetail() {
   };
 
   const handleDeleteCommunity = async () => {
-    if(!window.confirm('Are you ABSOLUTELY sure? This will permanently delete the community and all related members/posts/data!')) return;
+    const ok = await confirm({
+      title: 'Delete Community',
+      message: 'Are you ABSOLUTELY sure? This action is irreversible. This will permanently delete the community and all related members, posts, events, resources, and associated data!',
+      confirmText: 'Delete Permanently',
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow-md',
+      type: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await axios.delete(`${API_URL}/communities/${id}`);
+      toast.success('Community deleted successfully');
       navigate('/communities');
     } catch (err) {
       toast.error('Error deleting community');
@@ -137,6 +222,17 @@ export default function CommunityDetail() {
     try {
       await axios.post(`${API_URL}/events/${eventId}/rsvp`, { attending: !currentlyAttending });
       fetchDetail();
+      
+      // If the selected event is currently being viewed, update its user_attending state and reload its attendees!
+      if (selectedEvent && selectedEvent.id === eventId) {
+        setSelectedEvent(prev => ({
+          ...prev,
+          user_attending: !currentlyAttending ? 1 : 0,
+          attendee_count: !currentlyAttending ? prev.attendee_count + 1 : Math.max(0, prev.attendee_count - 1)
+        }));
+        fetchAttendees(eventId);
+      }
+      
       toast.success(!currentlyAttending ? 'RSVP Confirmed!' : 'RSVP Cancelled');
     } catch (err) {
       toast.error('Error updating RSVP');
@@ -156,7 +252,7 @@ export default function CommunityDetail() {
       <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-200 object-cover relative overflow-hidden">
         <div className={`absolute top-0 left-0 w-2 h-full ${comm.is_private ? 'bg-orange-500' : 'bg-primary-500'}`} />
         <div className="flex justify-between items-start">
-          <div>
+          <div className="flex-1 mr-4">
             <div className="flex items-center space-x-3 mb-2">
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${comm.is_private ? 'bg-orange-100 text-orange-800' : 'bg-primary-100 text-primary-800'}`}>
                 {comm.is_private ? <Lock className="w-3 h-3 mr-1"/> : <Unlock className="w-3 h-3 mr-1"/>}
@@ -164,8 +260,56 @@ export default function CommunityDetail() {
               </span>
               <span className="text-sm text-gray-500">Created by {comm.creator_name}</span>
             </div>
-            <h1 className="text-3xl font-extrabold text-gray-900 mt-2">{comm.name}</h1>
-            <p className="text-gray-600 mt-4 text-lg max-w-2xl">{comm.description}</p>
+            {isEditing ? (
+              <form onSubmit={handleSaveEdit} className="space-y-4 mt-4 w-full max-w-2xl">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Community Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-250 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-gray-900 font-semibold shadow-sm transition-all"
+                    placeholder="Community Name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Community Bio</label>
+                  <textarea
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-250 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-gray-700 leading-relaxed shadow-sm transition-all"
+                    placeholder="Describe your community..."
+                    rows="3"
+                  />
+                </div>
+                <div className="flex space-x-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditing(false);
+                      setEditForm({ name: comm.name, description: comm.description || '' });
+                    }}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors border border-gray-200"
+                    disabled={isSavingEdit}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-primary py-2 px-5 text-sm font-bold shadow-sm"
+                    disabled={isSavingEdit}
+                  >
+                    {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <h1 className="text-3xl font-extrabold text-gray-900 mt-2">{comm.name}</h1>
+                <p className="text-gray-600 mt-4 text-lg max-w-2xl">{comm.description}</p>
+              </>
+            )}
           </div>
           <div className="flex flex-col items-end space-y-3">
             {!myMembership && (
@@ -182,6 +326,14 @@ export default function CommunityDetail() {
               <span className="px-4 py-2 bg-green-100 text-green-800 rounded-lg font-medium border border-green-200 flex items-center">
                 <Check className="w-4 h-4 mr-1"/> Member
               </span>
+            )}
+            {isAdmin && !isEditing && (
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="flex items-center text-sm font-semibold text-primary-600 hover:text-white hover:bg-primary-600 border border-primary-250 px-3 py-1.5 rounded-lg transition-colors mt-2 shadow-sm"
+              >
+                <Edit2 className="w-4 h-4 mr-1" /> Edit Details
+              </button>
             )}
             {isCreator && (
               <button 
@@ -240,47 +392,14 @@ export default function CommunityDetail() {
                   ) : (
                     <div className="space-y-4">
                       {posts.map(post => (
-                        <Link key={post.id} to={`/post/${post.id}`} className="group block">
-                          <div className={`p-6 bg-white rounded-xl border transition-all ${post.type === 'emergency' ? 'border-emergency-300 hover:border-emergency-500 shadow-emergency-50' : 'border-gray-200 hover:border-primary-400 hover:shadow-md'}`}>
-                            <div className="flex justify-between items-center mb-3">
-                              <div className="flex items-center space-x-2">
-                                 {post.type === 'emergency' ? (
-                                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-emergency-100 text-emergency-700 uppercase">
-                                     <AlertTriangle className="w-3 h-3 mr-1" /> Emergency
-                                   </span>
-                                 ) : (
-                                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-primary-100 text-primary-700 uppercase">
-                                     <HelpCircle className="w-3 h-3 mr-1" /> Query
-                                   </span>
-                                 )}
-                                 <span className="text-xs text-gray-500 flex items-center">
-                                   <Clock className="w-3 h-3 mr-1" /> {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-                                 </span>
-                              </div>
-                            </div>
-                            <h3 className={`text-lg font-bold mb-1 group-hover:text-primary-600 transition-colors ${post.type === 'emergency' ? 'text-emergency-700' : 'text-gray-900'}`}>{post.title}</h3>
-                            <p className="text-gray-600 line-clamp-2 text-sm mb-3">{post.content}</p>
-                            
-                            <div className="flex items-center justify-between mt-4">
-                              <div className="flex items-center text-xs text-gray-500">
-                                <span className="font-medium text-gray-900 mr-1 flex items-center">
-                                  {post.author_name}
-                                  <MedicalBadge isMedicalProfessional={post.is_medical_professional} />
-                                </span>
-                                {post.location && (
-                                  <span className="flex items-center text-gray-500 before:content-['•'] before:mx-2">
-                                    <MapPin className="w-3 h-3 mr-1 text-emergency-500" />
-                                    {post.location}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center text-gray-500 group-hover:text-primary-600 font-medium text-sm">
-                                <MessageCircle className="w-4 h-4 mr-1" />
-                                {post.comment_count}
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
+                        <PostCard 
+                          key={post.id} 
+                          post={post} 
+                          currentUser={user} 
+                          onDelete={handleDeletePost} 
+                          onVote={fetchDetail}
+                          hideCommunityName={true}
+                        />
                       ))}
                     </div>
                   )}
@@ -320,9 +439,15 @@ export default function CommunityDetail() {
                     <div className="space-y-4">
                       {events.map(event => (
                         <div key={event.id} className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col md:flex-row md:items-center justify-between shadow-sm hover:shadow-md transition-shadow">
-                          <div className="flex-1 mb-4 md:mb-0">
-                            <h3 className="text-lg font-bold text-gray-900">{event.title}</h3>
-                            <p className="text-sm text-gray-600 mt-1">{event.description}</p>
+                          <div 
+                            onClick={() => {
+                              setSelectedEvent(event);
+                              fetchAttendees(event.id);
+                            }}
+                            className="flex-1 mb-4 md:mb-0 cursor-pointer group"
+                          >
+                            <h3 className="text-lg font-bold text-gray-900 group-hover:text-primary-600 transition-colors">{event.title}</h3>
+                            <p className="text-sm text-gray-600 mt-1 line-clamp-2">{event.description}</p>
                             <div className="flex flex-wrap items-center mt-3 text-xs text-gray-500 space-x-4">
                               <span className="flex items-center text-primary-700 font-medium bg-primary-50 px-2 py-1 rounded">
                                 <Calendar className="w-3 h-3 mr-1" />
@@ -338,7 +463,7 @@ export default function CommunityDetail() {
                               </span>
                             </div>
                           </div>
-                          <div className="md:ml-6 flex-shrink-0">
+                          <div className="md:ml-6 flex-shrink-0 relative z-10">
                             <button
                               onClick={() => handleRsvp(event.id, event.user_attending > 0)}
                               className={`w-full md:w-auto px-6 py-2.5 rounded-lg font-bold transition-colors ${event.user_attending > 0 ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200' : 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm'}`}
@@ -462,6 +587,24 @@ export default function CommunityDetail() {
                   </div>
                 </div>
               )}
+
+              {isAdmin && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                  <h3 className="font-bold text-gray-900 mb-3 flex items-center">
+                    <Shield className="w-4 h-4 mr-2 text-primary-600" /> Admin Panel
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-4">You have administrative access to this community.</p>
+                  <button 
+                    onClick={() => {
+                      setIsEditing(true);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="w-full flex items-center justify-center text-sm font-semibold text-primary-600 hover:text-white hover:bg-primary-600 border border-primary-200 px-4 py-2.5 rounded-xl transition-all shadow-sm hover:shadow-md"
+                  >
+                    <Edit2 className="w-4 h-4 mr-2" /> Edit Community Details
+                  </button>
+                </div>
+              )}
               
               <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
                 <h3 className="font-bold text-gray-900 mb-4">About this Community</h3>
@@ -489,6 +632,111 @@ export default function CommunityDetail() {
           <Lock className="mx-auto w-16 h-16 text-gray-300 mb-4" />
           <h3 className="text-xl font-bold text-gray-900">This community is private</h3>
           <p className="text-gray-500 mt-2">You must request to join and be approved to view its content.</p>
+        </div>
+      )}
+
+      {/* Event Details Modal */}
+      {selectedEvent && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-150 relative animate-scale-in">
+            {/* Modal Header banner */}
+            <div className="h-4 bg-gradient-to-r from-primary-500 to-emerald-500 w-full" />
+            
+            {/* Modal Body */}
+            <div className="p-6 sm:p-8 space-y-6">
+              <div className="flex justify-between items-start">
+                <h3 className="text-xl sm:text-2xl font-black text-gray-900 leading-tight pr-4">
+                  {selectedEvent.title}
+                </h3>
+                <button 
+                  onClick={() => setSelectedEvent(null)}
+                  className="p-1.5 hover:bg-gray-100 rounded-full transition-colors focus:outline-none"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              {/* Event Info Metadata */}
+              <div className="space-y-3 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 text-sm">
+                <div className="flex items-center text-gray-700">
+                  <Calendar className="w-4 h-4 mr-2 text-primary-500" />
+                  <span className="font-semibold">{new Date(selectedEvent.event_date).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center text-gray-700">
+                  <MapPin className="w-4 h-4 mr-2 text-red-500" />
+                  <span>{selectedEvent.location}</span>
+                </div>
+                <div className="flex items-center text-gray-700">
+                  <Users className="w-4 h-4 mr-2 text-indigo-500" />
+                  <span>{selectedEvent.attendee_count} attending</span>
+                </div>
+                <div className="flex items-center text-gray-500 text-xs border-t border-gray-100 pt-2.5 mt-2.5">
+                  <span className="font-medium">Hosted by:</span>
+                  <span className="ml-1.5 font-bold text-gray-800">{selectedEvent.creator_name || 'Community Admin'}</span>
+                </div>
+              </div>
+
+              {/* Description */}
+              {selectedEvent.description && (
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-gray-400">About the Event</h4>
+                  <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line bg-gray-50/20 p-3 rounded-xl border border-gray-100/50">
+                    {selectedEvent.description}
+                  </p>
+                </div>
+              )}
+
+              {/* RSVP Action */}
+              <div className="flex items-center justify-between border-t border-gray-100 pt-5">
+                <span className="text-xs text-gray-500 font-medium">Are you planning to attend?</span>
+                <button
+                  onClick={() => handleRsvp(selectedEvent.id, selectedEvent.user_attending > 0)}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors ${
+                    selectedEvent.user_attending > 0 
+                      ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-100' 
+                      : 'bg-primary-600 text-white hover:bg-primary-700'
+                  }`}
+                >
+                  {selectedEvent.user_attending > 0 ? 'Cancel RSVP' : 'Attend Event'}
+                </button>
+              </div>
+
+              {/* Attendees List Section */}
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-gray-400">Who's Coming ({attendees.length})</h4>
+                
+                {loadingAttendees ? (
+                  <div className="flex justify-center items-center py-6">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+                  </div>
+                ) : attendees.length === 0 ? (
+                  <div className="text-center py-6 bg-gray-50/50 rounded-2xl border border-dashed border-gray-150">
+                    <p className="text-xs text-gray-400 font-medium">No RSVPs yet. Be the first to join!</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
+                    {attendees.map(member => (
+                      <div key={member.id} className="flex items-center space-x-2.5 p-2 rounded-xl bg-gray-50/50 border border-gray-100">
+                        <Link to={`/user/${member.id}`} onClick={() => setSelectedEvent(null)} className="shrink-0 hover:opacity-85 transition-opacity">
+                          <Avatar src={member.profile_picture} name={member.username} size="w-8 h-8" />
+                        </Link>
+                        <div className="min-w-0 flex-1">
+                          <Link 
+                            to={`/user/${member.id}`} 
+                            onClick={() => setSelectedEvent(null)}
+                            className="text-xs font-bold text-gray-800 hover:text-primary-600 transition-colors truncate block flex items-center"
+                          >
+                            {member.username}
+                            <MedicalBadge isMedicalProfessional={member.is_medical_professional} className="w-3.5 h-3.5 ml-1 shrink-0" />
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
