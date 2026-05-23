@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { HeartPulse, Heart, Users, Droplets, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { HeartPulse, Heart, Users, Droplets, ArrowLeft, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export default function Auth() {
   const location = useLocation();
@@ -35,6 +35,16 @@ export default function Auth() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // Custom client-side email format validation for Sign Up
+    if (!isLogin) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!email.trim() || !emailRegex.test(email.trim())) {
+        setError('Please enter a valid email address (e.g., name@example.com).');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       if (isLogin) {
@@ -170,13 +180,14 @@ export default function Auth() {
 
           {/* Error Message */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6">
-              {error}
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6 flex items-start space-x-2.5 animate-fade-in shadow-sm">
+              <AlertCircle className="w-4.5 h-4.5 text-red-500 shrink-0 mt-0.5" />
+              <span className="font-semibold">{error}</span>
             </div>
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} noValidate className="space-y-5">
             {!isLogin && (
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">

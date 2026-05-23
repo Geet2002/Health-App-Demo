@@ -67,7 +67,7 @@ app.post('/api/auth/signup', async (req, res) => {
     );
 
     const token = jwt.sign({ id: result.insertId, username }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ message: 'Signup successful', token, user: { id: result.insertId, username } });
+    res.json({ message: 'Signup successful', token, user: { id: result.insertId, username, profile_picture: null } });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Username already exists' });
     console.error(err);
@@ -86,7 +86,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ message: 'Login successful', token, user: { id: user.id, username: user.username } });
+    res.json({ message: 'Login successful', token, user: { id: user.id, username: user.username, profile_picture: user.profile_picture } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -168,27 +168,30 @@ app.post('/api/users/me/verify-medical', authenticate, async (req, res) => {
 
 // ======================= POST ROUTES (Legacy / Updated) =======================
 
-// Get all general posts (where community_id is null)
 app.get('/api/posts', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const { filter } = req.query; // 'global', 'communities', or 'all'
 
-    let whereClause = `WHERE p.community_id IS NULL OR p.community_id IN (SELECT community_id FROM community_members WHERE user_id = ? AND status = 'approved')`;
-    
+    let whereClause = '';
     let queryParams = [];
+
     if (filter === 'global') {
       whereClause = `WHERE p.community_id IS NULL`;
+      queryParams = [userId];
     } else if (filter === 'communities') {
       whereClause = `WHERE p.community_id IN (SELECT community_id FROM community_members WHERE user_id = ? AND status = 'approved')`;
-      queryParams = [userId];
+      queryParams = [userId, userId];
     } else {
-      queryParams = [userId];
+      whereClause = `WHERE p.community_id IS NULL OR p.community_id IN (SELECT community_id FROM community_members WHERE user_id = ? AND status = 'approved')`;
+      queryParams = [userId, userId];
     }
 
     const [rows] = await pool.query(`
       SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional, c.name as community_name,
-      (SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) as comment_count
+      (SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) as comment_count,
+      (SELECT COUNT(*) FROM post_votes pv WHERE pv.post_id = p.id) as vote_count,
+      (SELECT vote_type FROM post_votes pv WHERE pv.post_id = p.id AND pv.user_id = ?) as user_vote
       FROM posts p
       LEFT JOIN users u ON p.author_id = u.id
       LEFT JOIN communities c ON p.community_id = c.id
@@ -238,6 +241,32 @@ app.post('/api/posts', authenticate, async (req, res) => {
   }
 });
 
+// Toggle Post Vote (Like)
+app.post('/api/posts/:id/vote', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // Check if vote exists
+    const [existing] = await pool.query('SELECT id FROM post_votes WHERE post_id = ? AND user_id = ?', [id, userId]);
+
+    if (existing.length > 0) {
+      // Remove vote (Unlike)
+      await pool.query('DELETE FROM post_votes WHERE post_id = ? AND user_id = ?', [id, userId]);
+      const [countRows] = await pool.query('SELECT COUNT(*) as count FROM post_votes WHERE post_id = ?', [id]);
+      return res.json({ message: 'Unliked', user_vote: null, vote_count: countRows[0].count });
+    } else {
+      // Add vote (Like)
+      await pool.query('INSERT INTO post_votes (post_id, user_id, vote_type) VALUES (?, ?, \'like\')', [id, userId]);
+      const [countRows] = await pool.query('SELECT COUNT(*) as count FROM post_votes WHERE post_id = ?', [id]);
+      return res.json({ message: 'Liked', user_vote: 'like', vote_count: countRows[0].count });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get post details
 app.get('/api/posts/:id', authenticate, async (req, res) => {
   try {
@@ -245,12 +274,14 @@ app.get('/api/posts/:id', authenticate, async (req, res) => {
     const userId = req.user.id;
     
     const [posts] = await pool.query(`
-      SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional, c.name as community_name
+      SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional, c.name as community_name,
+      (SELECT COUNT(*) FROM post_votes pv WHERE pv.post_id = p.id) as vote_count,
+      (SELECT vote_type FROM post_votes pv WHERE pv.post_id = p.id AND pv.user_id = ?) as user_vote
       FROM posts p 
       LEFT JOIN users u ON p.author_id = u.id 
       LEFT JOIN communities c ON p.community_id = c.id
       WHERE p.id = ?
-    `, [id]);
+    `, [userId, id]);
 
     if (posts.length === 0) return res.status(404).json({ error: 'Not found' });
 
@@ -550,6 +581,25 @@ app.post('/api/communities/:id/events', authenticate, async (req, res) => {
       `INSERT INTO community_events (community_id, created_by, title, description, event_date, location) VALUES (?, ?, ?, ?, ?, ?)`,
       [id, req.user.id, title, description, event_date, location]
     );
+
+    // Notify approved community members about the new event
+    try {
+      const [communityRows] = await pool.query(`SELECT name FROM communities WHERE id = ?`, [id]);
+      const communityName = communityRows[0]?.name || 'a community';
+      const [members] = await pool.query(
+        `SELECT user_id FROM community_members WHERE community_id = ? AND status = 'approved' AND user_id != ?`,
+        [id, req.user.id]
+      );
+      await Promise.all(members.map(m =>
+        pool.query(
+          `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'community_event', ?, ?)`,
+          [m.user_id, `New event scheduled in ${communityName}: "${title}"`, id]
+        )
+      ));
+    } catch (notifErr) {
+      console.error('Error dispatching community event notifications:', notifErr);
+    }
+
     res.json({ id: result.insertId, message: 'Event created successfully' });
   } catch (error) {
     console.error(error);
@@ -564,6 +614,24 @@ app.post('/api/events/:eventId/rsvp', authenticate, async (req, res) => {
 
     if (attending) {
       await pool.query(`INSERT IGNORE INTO event_attendees (event_id, user_id) VALUES (?, ?)`, [eventId, req.user.id]);
+
+      // Notify the event creator
+      try {
+        const [eventRows] = await pool.query(
+          `SELECT e.title, e.created_by, e.community_id, c.name as community_name FROM community_events e JOIN communities c ON e.community_id = c.id WHERE e.id = ?`,
+          [eventId]
+        );
+        if (eventRows.length > 0 && eventRows[0].created_by !== req.user.id) {
+          const event = eventRows[0];
+          await pool.query(
+            `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'event_rsvp', ?, ?)`,
+            [event.created_by, `${req.user.username} is attending your event "${event.title}" in ${event.community_name}`, event.community_id]
+          );
+        }
+      } catch (notifErr) {
+        console.error('Error dispatching RSVP notification:', notifErr);
+      }
+
       res.json({ message: 'RSVP successful' });
     } else {
       await pool.query(`DELETE FROM event_attendees WHERE event_id = ? AND user_id = ?`, [eventId, req.user.id]);
@@ -605,6 +673,25 @@ app.post('/api/communities/:id/resources', authenticate, async (req, res) => {
       `INSERT INTO community_resources (community_id, created_by, title, content, link) VALUES (?, ?, ?, ?, ?)`,
       [id, req.user.id, title, content, link || null]
     );
+
+    // Notify approved community members about the new resource
+    try {
+      const [communityRows] = await pool.query(`SELECT name FROM communities WHERE id = ?`, [id]);
+      const communityName = communityRows[0]?.name || 'a community';
+      const [members] = await pool.query(
+        `SELECT user_id FROM community_members WHERE community_id = ? AND status = 'approved' AND user_id != ?`,
+        [id, req.user.id]
+      );
+      await Promise.all(members.map(m =>
+        pool.query(
+          `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'community_resource', ?, ?)`,
+          [m.user_id, `New resource shared in ${communityName}: "${title}"`, id]
+        )
+      ));
+    } catch (notifErr) {
+      console.error('Error dispatching community resource notifications:', notifErr);
+    }
+
     res.json({ id: result.insertId, message: 'Resource added successfully' });
   } catch (error) {
     console.error(error);
@@ -862,7 +949,31 @@ app.post('/api/speech/transcribe', authenticate, async (req, res) => {
     const encoding = req.body.encoding || 'WEBM_OPUS';
 
     // Transcribe using Google Cloud Speech-to-Text
-    const transcription = await transcribeAudio(audioBase64, language, encoding);
+    let transcription = await transcribeAudio(audioBase64, language, encoding);
+
+    // Enforce target language script (pure transcription validation, no translation)
+    if (transcription) {
+      const langPrefix = language.split('-')[0]; // 'en', 'hi', 'as'
+      if (langPrefix === 'en') {
+        // Enforce Latin characters (English/ASCII)
+        const isEnglish = /^[\s\w.,!?'"\-()]+$/.test(transcription);
+        if (!isEnglish) {
+          transcription = "";
+        }
+      } else if (langPrefix === 'hi') {
+        // Enforce Devanagari characters (Hindi Unicode block)
+        const hasDevanagari = /[\u0900-\u097F]/.test(transcription);
+        if (!hasDevanagari) {
+          transcription = "";
+        }
+      } else if (langPrefix === 'as') {
+        // Enforce Bengali-Assamese characters (Assamese Unicode block)
+        const hasAssamese = /[\u0980-\u09FF]/.test(transcription);
+        if (!hasAssamese) {
+          transcription = "";
+        }
+      }
+    }
 
     res.json({ text: transcription });
   } catch (error) {
@@ -1058,10 +1169,21 @@ app.get('/api/users/:id/public', authenticate, async (req, res) => {
     );
     if (users.length === 0) return res.status(404).json({ error: 'User not found' });
     
+    // Get user stats (post count and total upvotes)
+    const [postCountRows] = await pool.query(`SELECT COUNT(*) as count FROM posts WHERE author_id = ?`, [id]);
+    const [upvoteCountRows] = await pool.query(`SELECT COUNT(*) as count FROM post_votes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)`, [id]);
+    
+    // Get their joined communities
+    const [communities] = await pool.query(
+      `SELECT c.id, c.name, c.description FROM communities c JOIN community_members cm ON c.id = cm.community_id WHERE cm.user_id = ? AND cm.status = 'approved'`,
+      [id]
+    );
+
     // Get their recent public posts
     const [posts] = await pool.query(
       `SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional,
-       (SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) as comment_count
+       (SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) as comment_count,
+       (SELECT COUNT(*) FROM post_votes pv WHERE pv.post_id = p.id) as vote_count
        FROM posts p
        JOIN users u ON p.author_id = u.id
        WHERE p.author_id = ? AND p.community_id IS NULL
@@ -1071,6 +1193,11 @@ app.get('/api/users/:id/public', authenticate, async (req, res) => {
     
     res.json({
       user: users[0],
+      stats: {
+        posts_count: postCountRows[0].count,
+        upvotes_count: upvoteCountRows[0].count
+      },
+      communities: communities,
       recent_posts: posts
     });
   } catch (error) {

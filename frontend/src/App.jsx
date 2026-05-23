@@ -44,7 +44,7 @@ function AppContent() {
             <Route path="/signup" element={<Auth />} />
           </Routes>
         ) : (
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-6xl mx-auto w-full">
             <Routes>
               <Route path="/feed" element={<ProtectedRoute><Feed /></ProtectedRoute>} />
               <Route path="/create" element={<ProtectedRoute><CreatePost /></ProtectedRoute>} />
@@ -79,23 +79,36 @@ function App() {
           toastOptions={{
             duration: 4000,
             style: {
-              background: '#333',
-              color: '#fff',
-              fontWeight: '500',
-              borderRadius: '12px',
-              padding: '16px',
+              background: 'rgba(255, 255, 255, 0.85)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              color: '#1f2937', // text-gray-800
+              fontWeight: '600',
+              fontSize: '13px',
+              borderRadius: '16px',
+              padding: '12px 20px',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03), 0 0 0 1px rgba(0, 0, 0, 0.03)',
+              border: '1px solid rgba(229, 231, 235, 0.5)',
+              display: 'inline-flex',
+              alignItems: 'center',
             },
             success: {
-              style: {
-                background: '#10b981',
-                color: '#fff',
+              iconTheme: {
+                primary: '#10b981', // emerald-500
+                secondary: '#ffffff',
               },
+              style: {
+                borderLeft: '4px solid #10b981',
+              }
             },
             error: {
-              style: {
-                background: '#ef4444',
-                color: '#fff',
+              iconTheme: {
+                primary: '#ef4444', // red-500
+                secondary: '#ffffff',
               },
+              style: {
+                borderLeft: '4px solid #ef4444',
+              }
             },
           }} 
         >
@@ -108,9 +121,9 @@ function App() {
                   {t.type !== 'loading' && (
                     <button 
                       onClick={() => toast.dismiss(t.id)} 
-                      className="ml-4 p-1 hover:bg-white/20 rounded-full transition-colors focus:outline-none"
+                      className="ml-3.5 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100/70 rounded-full transition-colors focus:outline-none shrink-0"
                     >
-                      <X className="w-4 h-4 text-white" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </>

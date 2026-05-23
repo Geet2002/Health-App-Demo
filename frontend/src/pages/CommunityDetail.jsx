@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
@@ -14,12 +14,25 @@ export default function CommunityDetail() {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [comm, setComm] = useState(null);
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('feed'); // feed, events, resources, members
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'feed'); // feed, events, resources, members
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && ['feed', 'events', 'resources', 'members'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tabName) => {
+    setActiveTab(tabName);
+    setSearchParams({ tab: tabName });
+  };
 
   // Event creation state
   const [showEventForm, setShowEventForm] = useState(false);
@@ -189,7 +202,7 @@ export default function CommunityDetail() {
             {['feed', 'events', 'resources', 'members'].map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => handleTabChange(tab)}
                 className={`flex-1 py-2.5 px-4 text-sm font-semibold rounded-lg capitalize flex justify-center items-center whitespace-nowrap transition-colors ${
                   activeTab === tab 
                     ? 'bg-primary-50 text-primary-700 shadow-sm' 

@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import MedicalBadge from '../components/MedicalBadge';
@@ -28,14 +28,18 @@ const CommentItem = ({ comment, allComments, user, onReply, onDelete, onVote, de
     <div className={`mt-4 ${depth > 0 ? 'ml-4 sm:ml-8 border-l-2 border-gray-100 pl-4' : ''}`}>
       <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-100 transition-shadow hover:shadow-md">
         <div className="flex items-start space-x-3">
-          <div className="bg-primary-50 p-2 rounded-full hidden sm:block">
-            <User className="w-4 h-4 text-primary-600" />
+          <div className="hidden sm:block shrink-0">
+            <Link to={`/user/${comment.author_id}`} className="hover:opacity-85 transition-opacity">
+              <Avatar src={comment.author_profile_picture} name={comment.author_name} size="w-8 h-8" />
+            </Link>
           </div>
           <div className="flex-1">
             <div className="flex justify-between items-start mb-2">
               <span className="font-bold text-gray-900 text-sm flex items-center">
-                {comment.author_name || 'Community Member'}
-                <MedicalBadge isMedicalProfessional={comment.is_medical_professional} />
+                <Link to={`/user/${comment.author_id}`} className="hover:text-primary-600 transition-colors flex items-center">
+                  {comment.author_name || 'Community Member'}
+                  <MedicalBadge isMedicalProfessional={comment.is_medical_professional} />
+                </Link>
               </span>
               <div className="flex items-center space-x-3">
                 <span className="text-xs text-gray-400">
@@ -297,13 +301,16 @@ export default function PostDetail() {
           })()}
 
           <div className="mt-8 pt-6 border-t border-gray-100 flex items-center text-gray-600">
-            <Avatar src={post.author_profile_picture} name={post.author_name} size="w-12 h-12" className="mr-3" />
+            <Link to={`/user/${post.author_id}`} className="hover:opacity-85 transition-opacity mr-3 shrink-0">
+              <Avatar src={post.author_profile_picture} name={post.author_name} size="w-12 h-12" />
+            </Link>
             <div>
               <p className="text-sm font-semibold text-gray-900 flex items-center">
-                {post.author_name || 'Anonymous User'}
-                <MedicalBadge isMedicalProfessional={post.is_medical_professional} />
+                <Link to={`/user/${post.author_id}`} className="hover:text-primary-600 transition-colors flex items-center">
+                  {post.author_name || 'Anonymous User'}
+                  <MedicalBadge isMedicalProfessional={post.is_medical_professional} />
+                </Link>
               </p>
-              <p className="text-xs text-gray-500">{post.community_name ? 'Community Member' : 'Global User'}</p>
             </div>
           </div>
         </div>

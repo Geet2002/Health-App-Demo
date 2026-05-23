@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
-import { User, Calendar, MapPin, HelpCircle, ArrowLeft } from 'lucide-react';
+import { 
+  User, Calendar, MapPin, HelpCircle, ArrowLeft, Users, 
+  CheckCircle, Award, Activity 
+} from 'lucide-react';
 import Avatar from '../components/Avatar';
 import MedicalBadge from '../components/MedicalBadge';
 import PostCard from '../components/PostCard';
@@ -56,55 +59,165 @@ export default function UserPublicProfile() {
     );
   }
 
-  const { user, recent_posts } = profileData;
+  const { user, recent_posts, stats, communities } = profileData;
+
+  // Reputation Points System logic
+  const myPostsCount = stats?.posts_count || 0;
+  const myUpvotesCount = stats?.upvotes_count || 0;
+  const reputationPoints = (myPostsCount * 10) + (myUpvotesCount * 25);
+
+  let levelName = 'Care Supporter';
+  let nextLevelPoints = 100;
+  let progressPercent = 0;
+
+  if (reputationPoints < 50) {
+    levelName = 'Community Helper';
+    nextLevelPoints = 50;
+    progressPercent = (reputationPoints / 50) * 100;
+  } else if (reputationPoints < 200) {
+    levelName = 'Health Advocate';
+    nextLevelPoints = 200;
+    progressPercent = ((reputationPoints - 50) / 150) * 100;
+  } else {
+    levelName = 'Life Saver';
+    nextLevelPoints = 500;
+    progressPercent = Math.min((reputationPoints / 500) * 100, 100);
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in pb-12">
-      <button onClick={() => navigate(-1)} className="inline-flex items-center text-gray-500 hover:text-primary-600 transition-colors">
+      <button onClick={() => navigate(-1)} className="inline-flex items-center text-gray-500 hover:text-primary-600 transition-colors text-sm font-semibold">
         <ArrowLeft className="w-4 h-4 mr-1" />
         Back
       </button>
 
-      {/* Profile Header */}
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="h-32 bg-gradient-to-r from-primary-400 to-blue-500"></div>
-        <div className="px-8 pb-8 relative">
+      {/* Profile Header Card */}
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-150 overflow-hidden relative">
+        <div className="h-32 bg-gradient-to-r from-primary-500 via-emerald-500 to-teal-600 relative">
+          <div className="absolute inset-0 bg-white/5 opacity-50"></div>
+        </div>
+        
+        <div className="px-6 sm:px-8 pb-8 relative">
+          {/* Avatar Positioning */}
           <div className="flex justify-between items-end -mt-12 mb-6">
-            <div className="w-24 h-24 rounded-full border-4 border-white bg-white overflow-hidden shadow-sm">
+            <div className="w-24 h-24 rounded-full border-4 border-white bg-white overflow-hidden shadow-md">
               <Avatar src={user.profile_picture} name={user.username} size="w-full h-full" />
             </div>
+            {user.is_medical_professional === 1 && (
+              <span className="px-3 py-1 bg-primary-50 border border-primary-100 text-[10px] font-extrabold text-primary-700 rounded-full flex items-center" title="Verified Professional">
+                <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                Verified Professional
+              </span>
+            )}
           </div>
           
-          <div>
-            <h1 className="text-3xl font-extrabold text-gray-900 flex items-center">
+          {/* Bio Info */}
+          <div className="space-y-2">
+            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 flex items-center">
               {user.username}
               <MedicalBadge isMedicalProfessional={user.is_medical_professional} className="w-6 h-6 ml-2 text-blue-600" />
             </h1>
-            <p className="text-gray-500 flex items-center mt-2">
-              <Calendar className="w-4 h-4 mr-1.5" />
+            <p className="text-gray-400 flex items-center text-xs font-semibold uppercase tracking-wider">
+              <Calendar className="w-4 h-4 mr-1.5 text-gray-400" />
               Joined {formatDistanceToNow(new Date(user.created_at), { addSuffix: true })}
             </p>
           </div>
 
           {user.description && (
-            <div className="mt-6 pt-6 border-t border-gray-100 text-gray-700 leading-relaxed">
-              {user.description}
+            <div className="mt-5 pt-5 border-t border-gray-100 text-gray-700 text-sm sm:text-base leading-relaxed">
+              <p className="italic">"{user.description}"</p>
             </div>
           )}
+
+          {/* Gamified Reputation & Contributor Stats Section */}
+          <div className="mt-6 pt-6 border-t border-gray-100 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <Award className="w-5 h-5 text-yellow-500" />
+                <span className="font-extrabold text-gray-800 text-sm">Community Reputation</span>
+              </div>
+              <span className="font-extrabold text-xs text-primary-600 bg-primary-50 px-3 py-1 rounded-full uppercase tracking-wider self-start sm:self-auto">
+                {levelName}
+              </span>
+            </div>
+
+            {/* Level slider */}
+            <div className="space-y-1.5">
+              <div className="w-full bg-gray-150 rounded-full h-2.5 overflow-hidden shadow-inner border border-gray-200">
+                <div className="bg-primary-500 h-full rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
+              </div>
+              <div className="flex items-center justify-between text-xs font-bold text-gray-400">
+                <span>{reputationPoints} Reputation Points</span>
+                <span>Next Rank: {nextLevelPoints} pts</span>
+              </div>
+            </div>
+
+            {/* Stat counts grid */}
+            <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-2">
+              <div className="bg-gray-50/50 p-3.5 rounded-2xl border border-gray-100 text-center">
+                <span className="block text-xl sm:text-2xl font-black text-gray-900">{myPostsCount}</span>
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mt-1 block">Posts Shared</span>
+              </div>
+              <div className="bg-gray-50/50 p-3.5 rounded-2xl border border-gray-100 text-center">
+                <span className="block text-xl sm:text-2xl font-black text-primary-600">{myUpvotesCount}</span>
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mt-1 block">Upvotes Gained</span>
+              </div>
+              <div className="bg-gray-50/50 p-3.5 rounded-2xl border border-gray-100 text-center">
+                <span className="block text-xl sm:text-2xl font-black text-indigo-600">{reputationPoints}</span>
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mt-1 block">Total Score</span>
+              </div>
+            </div>
+          </div>
+          
         </div>
       </div>
 
-      {/* Recent Public Posts */}
-      <div className="space-y-4 mt-8">
-        <h2 className="text-xl font-bold text-gray-900 px-2">Recent Public Activity</h2>
+      {/* Communities Joined Card */}
+      <div className="bg-white rounded-3xl p-6 border border-gray-150 shadow-sm space-y-4">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center">
+          <Users className="w-5 h-5 mr-2 text-primary-500" />
+          Communities Joined ({communities.length})
+        </h2>
         
-        {recent_posts.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 shadow-sm">
-            <HelpCircle className="mx-auto h-10 w-10 text-gray-300" />
-            <p className="mt-2 text-gray-500">No public posts yet.</p>
+        {communities.length === 0 ? (
+          <div className="text-center py-8 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+            <p className="text-sm text-gray-400 font-medium">This user is not part of any communities yet.</p>
           </div>
         ) : (
-          <div className="grid gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {communities.map((comm) => (
+              <Link 
+                key={comm.id} 
+                to={`/communities/${comm.id}`} 
+                className="flex items-center space-x-3.5 p-3.5 rounded-2xl bg-gray-50/50 hover:bg-gray-100/80 border border-gray-100 hover:border-gray-200 transition-all group"
+              >
+                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-extrabold shrink-0 uppercase border border-primary-200 shadow-sm group-hover:bg-primary-200 group-hover:text-primary-700 transition-colors">
+                  {comm.name.charAt(0)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-sm font-extrabold text-gray-800 truncate group-hover:text-primary-600 transition-colors">{comm.name}</h4>
+                  <p className="text-[10px] text-gray-400 font-bold truncate mt-0.5 uppercase tracking-wide">Community Member</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Recent Public Activity Feed */}
+      <div className="space-y-4 mt-8">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900 px-2 flex items-center">
+          <Activity className="w-5 h-5 mr-2 text-primary-500" />
+          Recent Public Activity
+        </h2>
+        
+        {recent_posts.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-3xl border border-gray-150 shadow-sm p-6">
+            <HelpCircle className="mx-auto h-10 w-10 text-gray-300" />
+            <p className="mt-2 text-gray-400 font-medium">No public activity to display yet.</p>
+          </div>
+        ) : (
+          <div className="grid gap-5">
             {recent_posts.map((post) => (
               <PostCard key={post.id} post={post} currentUser={currentUser} onDelete={() => {}} />
             ))}

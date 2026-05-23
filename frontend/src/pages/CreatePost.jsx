@@ -2,7 +2,7 @@ import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { AlertCircle, FileText, MapPin, Send, Map as MapIcon, Mic, Loader2 } from 'lucide-react';
+import { AlertCircle, FileText, MapPin, Send, Map as MapIcon, Mic, Loader2, Locate } from 'lucide-react';
 import useSpeechToText from '../hooks/useSpeechToText';
 import GoogleMap from '../components/GoogleMap';
 
@@ -109,6 +109,48 @@ export default function CreatePost() {
       });
     }
   }, [type, position]);
+
+  // Request browser geolocation to reset/refresh the map pin back to current coordinates
+  const resetToCurrentLocation = () => {
+    if (navigator.geolocation) {
+      setGeocoding(true);
+      setGeocodeError('');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setPosition(p);
+          setDeviceLocation(p);
+          setShowMap(true);
+          
+          // Reverse geocode using Google Maps API
+          if (window.google && window.google.maps) {
+            const geocoder = new window.google.maps.Geocoder();
+            geocoder.geocode({ location: p }, (results, status) => {
+              if (status === 'OK' && results[0]) {
+                setLocationText(results[0].formatted_address);
+                toast.success('Location reset to current position');
+              } else {
+                setLocationText(`${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`);
+                toast.success('Location reset to current coordinates');
+              }
+              setGeocoding(false);
+            });
+          } else {
+            setLocationText(`${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`);
+            toast.success('Location reset to current coordinates');
+            setGeocoding(false);
+          }
+        },
+        (err) => {
+          console.error(err);
+          setGeocodeError('Failed to access your location. Check browser permissions.');
+          setGeocoding(false);
+        }
+      );
+    } else {
+      setGeocodeError('Geolocation is not supported by this browser.');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -285,7 +327,16 @@ export default function CreatePost() {
                       <MapPin className="w-4 h-4 mr-1 text-emergency-500" />
                       Location Description
                     </span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={resetToCurrentLocation}
+                        className="text-xs text-red-600 hover:text-red-700 flex items-center bg-red-50 hover:bg-red-100 px-2 py-1 rounded-md transition-all active:scale-95 border border-red-100"
+                        title="Locate me again"
+                      >
+                        <Locate className="w-3 h-3 mr-1" />
+                        Use Current Location
+                      </button>
                       <button 
                         type="button" 
                         onClick={() => setShowMap(!showMap)}

@@ -56,11 +56,31 @@ export default function Notifications() {
                   <p className={`text-sm ${n.is_read ? 'text-gray-800' : 'text-gray-900 font-bold'}`}>{n.content}</p>
                   <p className="text-xs text-gray-400 mt-1">{formatDistanceToNow(new Date(n.created_at))} ago</p>
                   
-                  {n.related_id && (
-                     <Link to={`/communities/${n.related_id}`} className="inline-block mt-3 text-sm font-medium text-primary-600 hover:text-primary-700 hover:underline">
-                       View Community
-                     </Link>
-                  )}
+                  {n.related_id && (() => {
+                    let toPath = `/communities/${n.related_id}`;
+                    let label = 'View Community';
+                    if (n.type === 'community_event') {
+                      toPath = `/communities/${n.related_id}?tab=events`;
+                      label = 'View Event';
+                    } else if (n.type === 'event_rsvp') {
+                      toPath = `/communities/${n.related_id}?tab=events`;
+                      label = 'View RSVP';
+                    } else if (n.type === 'community_resource') {
+                      toPath = `/communities/${n.related_id}?tab=resources`;
+                      label = 'View Resource';
+                    } else if (n.type === 'new_post') {
+                      toPath = `/post/${n.related_id}`;
+                      label = 'View Post';
+                    } else if (['blood_request', 'blood_comment', 'blood_offer'].includes(n.type)) {
+                      toPath = `/blood-donation/${n.related_id}`;
+                      label = 'View Blood Request';
+                    }
+                    return (
+                      <Link to={toPath} className="inline-block mt-3 text-sm font-medium text-primary-600 hover:text-primary-700 hover:underline animate-fade-in">
+                        {label}
+                      </Link>
+                    );
+                  })()}
                 </div>
                 {!n.is_read && (
                   <button onClick={() => markRead(n.id)} className="text-primary-600 hover:text-primary-800 flex items-center text-xs font-semibold bg-primary-100 hover:bg-primary-200 px-2 py-1 rounded transition-colors">
