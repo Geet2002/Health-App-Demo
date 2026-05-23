@@ -1,27 +1,32 @@
-# Logs
 backend/.env
 frontend/.env
 
-backend/node_modules
-frontend/node_modules
-backend/uploads
-dist
-dist-ssr
-*.local
+backend/service-account.json
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+
+backend/uploads/
+backend/server.log
+
+# Build Outputs
+dist/
+dist-ssr/
+build/
+
+# IDE and OS Files
 .DS_Store
+.vscode/
+!.vscode/extensions.json
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-backend/uploads/1776979489584.jpeg
-backend/uploads/1776978697351.jpeg
-.gitignore
-.gitignore
-backend/uploads/1776978726179.jpeg
-backend/uploads/1776980513454.jpg
+
+# Testing Scripts
+test_speech.js

@@ -7,6 +7,8 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 .env
+service-account.json
+server.log
 
 node_modules
 dist

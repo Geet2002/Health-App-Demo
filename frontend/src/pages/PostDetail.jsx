@@ -6,18 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { AlertTriangle, HelpCircle, MapPin, Send, ArrowLeft, User, Clock, Trash2, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import { useAuth } from '../context/AuthContext';
-import { MapContainer, Marker, TileLayer } from 'react-leaflet';
-import L from 'leaflet';
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-
-let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
+import GoogleMap from '../components/GoogleMap';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -290,18 +279,13 @@ export default function PostDetail() {
                 </div>
                 {locPos && (
                   <div className="h-48 w-full rounded-xl overflow-hidden border border-gray-200 relative z-0">
-                    <MapContainer 
+                    <GoogleMap 
                       center={locPos} 
                       zoom={15} 
-                      scrollWheelZoom={false} 
+                      markerPosition={locPos}
+                      scrollWheelZoom={false}
                       style={{ height: '100%', width: '100%' }}
-                    >
-                      <TileLayer
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        attribution='&copy; OpenStreetMap contributors'
-                      />
-                      <Marker position={locPos}></Marker>
-                    </MapContainer>
+                    />
                   </div>
                 )}
               </div>

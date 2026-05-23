@@ -2,44 +2,12 @@ import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { AlertCircle, FileText, MapPin, Send, Map as MapIcon, Mic } from 'lucide-react';
-import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+import { AlertCircle, FileText, MapPin, Send, Map as MapIcon, Mic, Loader2 } from 'lucide-react';
 import useSpeechToText from '../hooks/useSpeechToText';
-
-let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
+import GoogleMap from '../components/GoogleMap';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
-function LocationMarker({ position, setPosition }) {
-  useMapEvents({
-    click(e) {
-      setPosition(e.latlng);
-    },
-  });
-
-  return position === null ? null : (
-    <Marker position={position}></Marker>
-  );
-}
-
-function RecenterMap({ position }) {
-  const map = useMapEvents({});
-  useEffect(() => {
-    if (position && map) {
-      map.setView(position, 15, { animate: true });
-    }
-  }, [position, map]);
-  return null;
-}
 
 export default function CreatePost() {
   const navigate = useNavigate();
@@ -52,6 +20,7 @@ export default function CreatePost() {
   const [locationText, setLocationText] = useState('');
   const [position, setPosition] = useState(null);
   const [showMap, setShowMap] = useState(false);
+  const [deviceLocation, setDeviceLocation] = useState(null);
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -66,6 +35,7 @@ export default function CreatePost() {
 
   const { 
     isListening: titleIsListening, 
+    isTranscribing: titleIsTranscribing,
     isSupported: titleIsSupported, 
     error: titleError, 
     transcript: titleTranscript,
@@ -75,6 +45,7 @@ export default function CreatePost() {
   
   const { 
     isListening: contentIsListening, 
+    isTranscribing: contentIsTranscribing,
     isSupported: contentIsSupported, 
     error: contentError, 
     transcript: contentTranscript,
@@ -85,29 +56,53 @@ export default function CreatePost() {
   const [originalTitle, setOriginalTitle] = useState('');
   const [originalContent, setOriginalContent] = useState('');
 
-  // Handle real-time speech-to-text transcript updates
+  // Handle speech-to-text transcript updates (arrives after API call completes)
   useEffect(() => {
-    if (titleIsListening) {
-      setTitle(originalTitle + (titleTranscript ? (originalTitle ? ' ' : '') + titleTranscript.trim() : ''));
+    if (titleTranscript) {
+      setTitle(originalTitle + (originalTitle ? ' ' : '') + titleTranscript.trim());
     }
-  }, [titleTranscript, titleIsListening, originalTitle]);
+  }, [titleTranscript]);
 
   useEffect(() => {
-    if (contentIsListening) {
-      setContent(originalContent + (contentTranscript ? (originalContent ? ' ' : '') + contentTranscript.trim() : ''));
+    if (contentTranscript) {
+      setContent(originalContent + (originalContent ? ' ' : '') + contentTranscript.trim());
     }
-  }, [contentTranscript, contentIsListening, originalContent]);
+  }, [contentTranscript]);
   
+  // Get device location on mount for map centering
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setDeviceLocation(p);
+      }, () => {
+        // user denied or error — no-op
+      });
+    }
+  }, []);
+
   // Auto-focus location if it's an emergency
   useEffect(() => {
     if (type === 'emergency' && navigator.geolocation && !position) {
       navigator.geolocation.getCurrentPosition((pos) => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setPosition(p);
+        setDeviceLocation(p);
         setShowMap(true);
-        // Auto-fill location text if empty with approximate coords
+        // Reverse geocode to get a readable address
         if (!locationText) {
-          setLocationText(`${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`);
+          if (window.google && window.google.maps) {
+            const geocoder = new window.google.maps.Geocoder();
+            geocoder.geocode({ location: p }, (results, status) => {
+              if (status === 'OK' && results[0]) {
+                setLocationText(results[0].formatted_address);
+              } else {
+                setLocationText('');
+              }
+            });
+          } else {
+            setLocationText('');
+          }
         }
       }, () => {
         // user denied or error
@@ -119,7 +114,7 @@ export default function CreatePost() {
     e.preventDefault();
     setLoading(true);
     try {
-      const communityId = queryParams.get('communityId');
+      const communityId = queryParams.get('communityId') || import.meta.env.VITE_DEFAULT_COMMUNITY_ID;
       
       let finalLocation = null;
       if (type === 'emergency') {
@@ -212,7 +207,7 @@ export default function CreatePost() {
                   required
                   type="text"
                   placeholder={type === 'emergency' ? "e.g., Car accident near highway, need immediate hospital suggestions" : "e.g., Looking for a good pediatrician in downtown"}
-                  className={`w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-colors bg-gray-50 focus:bg-white ${titleIsListening ? 'border-red-300 ring-2 ring-red-200 bg-red-50/10' : ''}`}
+                  className={`w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-colors bg-gray-50 focus:bg-white ${titleIsListening ? 'border-red-300 ring-2 ring-red-200 bg-red-50/10' : ''} ${titleIsTranscribing ? 'border-blue-300 ring-2 ring-blue-200 bg-blue-50/10' : ''}`}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
@@ -221,20 +216,22 @@ export default function CreatePost() {
                   className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all flex items-center justify-center ${
                     titleIsListening 
                       ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 scale-105 hover:bg-red-600 animate-pulse' 
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                      : titleIsTranscribing
+                        ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30 cursor-wait'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
                   }`}
                   onClick={() => {
                     if (titleIsListening) {
                       stopTitleListening();
-                    } else {
+                    } else if (!titleIsTranscribing) {
                       setOriginalTitle(title);
                       startTitleListening();
                     }
                   }}
-                  disabled={!titleIsSupported}
-                  title={titleIsListening ? 'Recording... Click to stop' : 'Click to dictate'}
+                  disabled={!titleIsSupported || titleIsTranscribing}
+                  title={titleIsListening ? 'Recording... Click to stop' : titleIsTranscribing ? 'Transcribing...' : 'Click to dictate'}
                 >
-                  <Mic className="w-4 h-4" />
+                  {titleIsTranscribing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
                 </button>
                 {titleError && <p className="mt-1 text-xs text-red-600 flex items-center"><AlertCircle className="w-3.5 h-3.5 mr-1" />{titleError}</p>}
               </div>
@@ -250,7 +247,7 @@ export default function CreatePost() {
                   required
                   rows={5}
                   placeholder="Provide more context..."
-                  className={`w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-colors bg-gray-50 focus:bg-white resize-none ${contentIsListening ? 'border-red-300 ring-2 ring-red-200 bg-red-50/10' : ''}`}
+                  className={`w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-colors bg-gray-50 focus:bg-white resize-none ${contentIsListening ? 'border-red-300 ring-2 ring-red-200 bg-red-50/10' : ''} ${contentIsTranscribing ? 'border-blue-300 ring-2 ring-blue-200 bg-blue-50/10' : ''}`}
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                 />
@@ -259,20 +256,22 @@ export default function CreatePost() {
                   className={`absolute right-2 top-2 p-2 rounded-lg transition-all flex items-center justify-center ${
                     contentIsListening 
                       ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 scale-105 hover:bg-red-600 animate-pulse' 
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                      : contentIsTranscribing
+                        ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30 cursor-wait'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
                   }`}
                   onClick={() => {
                     if (contentIsListening) {
                       stopContentListening();
-                    } else {
+                    } else if (!contentIsTranscribing) {
                       setOriginalContent(content);
                       startContentListening();
                     }
                   }}
-                  disabled={!contentIsSupported}
-                  title={contentIsListening ? 'Recording... Click to stop' : 'Click to dictate'}
+                  disabled={!contentIsSupported || contentIsTranscribing}
+                  title={contentIsListening ? 'Recording... Click to stop' : contentIsTranscribing ? 'Transcribing...' : 'Click to dictate'}
                 >
-                  <Mic className="w-4 h-4" />
+                  {contentIsTranscribing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
                 </button>
                 {contentError && <p className="mt-1 text-xs text-red-600 flex items-center"><AlertCircle className="w-3.5 h-3.5 mr-1" />{contentError}</p>}
               </div>
@@ -302,22 +301,54 @@ export default function CreatePost() {
                           setGeocodeError('');
                           setGeocoding(true);
                           try {
-                            const q = encodeURIComponent(locationText);
-                            // Use OpenStreetMap Nominatim for free geocoding
-                            const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
-                            const data = await res.json();
-                            if (!data || data.length === 0) {
-                              setGeocodeError('Location not found');
+                            if (window.google && window.google.maps) {
+                              const geocoder = new window.google.maps.Geocoder();
+                              geocoder.geocode({ address: locationText }, async (results, status) => {
+                                if (status === 'OK' && results[0]) {
+                                  const loc = results[0].geometry.location;
+                                  const p = { lat: loc.lat(), lng: loc.lng() };
+                                  setPosition(p);
+                                  setShowMap(true);
+                                  setGeocoding(false);
+                                } else {
+                                  console.warn('Google Geocoding failed (status: ' + status + '). Trying OpenStreetMap fallback...');
+                                  // Fallback to OpenStreetMap Nominatim
+                                  try {
+                                    const q = encodeURIComponent(locationText);
+                                    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
+                                    const data = await res.json();
+                                    if (!data || data.length === 0) {
+                                      setGeocodeError('Location not found');
+                                    } else {
+                                      const lat = parseFloat(data[0].lat);
+                                      const lon = parseFloat(data[0].lon);
+                                      setPosition({ lat, lng: lon });
+                                      setShowMap(true);
+                                    }
+                                  } catch (err) {
+                                    setGeocodeError('Location not found or geocoding failed');
+                                  } finally {
+                                    setGeocoding(false);
+                                  }
+                                }
+                              });
                             } else {
-                              const lat = parseFloat(data[0].lat);
-                              const lon = parseFloat(data[0].lon);
-                              const p = { lat, lng: lon };
-                              setPosition(p);
-                              setShowMap(true);
+                              // Fallback to OpenStreetMap Nominatim
+                              const q = encodeURIComponent(locationText);
+                              const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
+                              const data = await res.json();
+                              if (!data || data.length === 0) {
+                                setGeocodeError('Location not found');
+                              } else {
+                                const lat = parseFloat(data[0].lat);
+                                const lon = parseFloat(data[0].lon);
+                                setPosition({ lat, lng: lon });
+                                setShowMap(true);
+                              }
+                              setGeocoding(false);
                             }
                           } catch (err) {
                             setGeocodeError('Failed to find location');
-                          } finally {
                             setGeocoding(false);
                           }
                         }}
@@ -331,8 +362,8 @@ export default function CreatePost() {
                     id="locationText"
                     required
                     type="text"
-                    placeholder="e.g., 5th Avenue crossing Main Street"
-                    className="w-full px-4 py-3 rounded-xl border border-emergency-300 focus:ring-2 focus:border-transparent focus:ring-emergency-500 transition-shadow bg-emergency-50 focus:bg-white"
+                    placeholder="e.g., Gauhati University"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-colors bg-gray-50 focus:bg-white"
                     value={locationText}
                     onChange={(e) => setLocationText(e.target.value)}
                   />
@@ -341,19 +372,29 @@ export default function CreatePost() {
                 
                 {showMap && (
                   <div className="h-64 rounded-xl overflow-hidden border border-gray-300 relative z-0">
-                    <MapContainer 
-                      center={position || [51.505, -0.09]} 
-                      zoom={position ? 15 : 13} 
-                      scrollWheelZoom={true} 
+                    <GoogleMap 
+                      center={position || deviceLocation || { lat: 20.5937, lng: 78.9629 }} 
+                      zoom={position ? 15 : (deviceLocation ? 14 : 5)} 
+                      markerPosition={position}
+                      onMapClick={(coords) => {
+                        setPosition(coords);
+                        // Reverse geocode to fill location name
+                        if (window.google && window.google.maps) {
+                          const geocoder = new window.google.maps.Geocoder();
+                          geocoder.geocode({ location: coords }, (results, status) => {
+                            if (status === 'OK' && results[0]) {
+                              setLocationText(results[0].formatted_address);
+                            } else {
+                              setLocationText('');
+                            }
+                          });
+                        } else {
+                          setLocationText('');
+                        }
+                      }}
+                      scrollWheelZoom={true}
                       style={{ height: '100%', width: '100%' }}
-                    >
-                      <TileLayer
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        attribution='&copy; OpenStreetMap contributors'
-                      />
-                      <LocationMarker position={position} setPosition={setPosition} />
-                      <RecenterMap position={position} />
-                    </MapContainer>
+                    />
                     {!position && (
                        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-[1000] bg-white px-3 py-1.5 rounded-full shadow-md text-xs font-bold text-gray-700 pointer-events-none">
                          Click on map to place pin

@@ -9,7 +9,8 @@ require('dotenv').config();
 
 const app = express();
 app.use(cors({ origin: 'http://localhost:5173' })); // credentials not needed for bearer tokens
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Multer Storage Configuration
@@ -720,30 +721,28 @@ app.delete('/api/blood-requests/:id', authenticate, async (req, res) => {
   }
 });
 
-// ======================= WHISPER SPEECH-TO-TEXT ROUTE =======================
+// ======================= GOOGLE CLOUD SPEECH-TO-TEXT ROUTE =======================
 
-app.post('/api/whisper/transcribe', authenticate, async (req, res) => {
+app.post('/api/speech/transcribe', authenticate, async (req, res) => {
   try {
-    const { transcribeAudio } = require('./services/whisperService');
+    const { transcribeAudio } = require('./services/googleSpeechService');
 
     // Check if audio data was sent
     if (!req.body || !req.body.audio) {
       return res.status(400).json({ error: 'No audio data provided' });
     }
 
-    // Decode base64 audio data
-    const audioBuffer = Buffer.from(req.body.audio, 'base64');
+    // Extract parameters
+    const audioBase64 = req.body.audio;
+    const language = req.body.language || 'en-US';
+    const encoding = req.body.encoding || 'WEBM_OPUS';
 
-    // Optional language and mimeType parameters
-    const mimeType = req.body.mimeType || 'audio/webm';
-    const language = req.body.language || 'en';
-
-    // Transcribe using Whisper
-    const transcription = await transcribeAudio(audioBuffer, mimeType, language);
+    // Transcribe using Google Cloud Speech-to-Text
+    const transcription = await transcribeAudio(audioBase64, language, encoding);
 
     res.json({ text: transcription });
   } catch (error) {
-    console.error('Whisper transcription error:', error);
+    console.error('Speech transcription error:', error);
     res.status(500).json({ error: error.message || 'Transcription failed' });
   }
 });
