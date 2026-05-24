@@ -22,7 +22,7 @@ export default function Signup() {
 
   return (
     <div className="flex items-center justify-center min-h-screen w-full py-12 px-4 sm:px-6 lg:px-8 bg-primary-50/50">
-      <div className="flex bg-white shadow-2xl rounded-3xl overflow-hidden max-w-4xl w-full min-h-[550px]">
+      <div className="flex bg-white shadow-2xl rounded-3xl overflow-hidden max-w-4xl w-full min-h-[550px] animate-fade-in-up">
         {/* Left Side - Green Panel */}
         <div className="w-1/2 bg-gradient-to-br from-primary-500 to-primary-700 text-white p-12 flex flex-col justify-center items-center text-center hidden sm:flex relative rounded-r-[100px] z-10 shadow-[10px_0_30px_-10px_rgba(0,0,0,0.3)]">
           <div className="absolute top-8 left-8 flex items-center space-x-2">

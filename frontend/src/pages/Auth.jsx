@@ -61,7 +61,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="min-h-screen flex bg-gray-50 animate-fade-in-down">
       {/* Left Panel — Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-green-600 via-emerald-600 to-teal-700 flex-col justify-between p-12 relative overflow-hidden">
         {/* Background decoration */}
@@ -71,7 +71,7 @@ export default function Auth() {
 
         {/* Logo */}
         <div className="relative pl-12 z-10">
-          <Link to="/" className="flex items-center space-x-3 group">
+          <Link to="/" viewTransition className="flex items-center space-x-3 group">
             <div className="bg-white/20 p-2.5 rounded-xl group-hover:bg-white/30 transition-colors">
               <HeartPulse className="w-7 h-7 text-white" />
             </div>
@@ -125,7 +125,7 @@ export default function Auth() {
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-10 lg:px-12 py-12">
         {/* Mobile back button + logo */}
         <div className="lg:hidden flex items-center justify-between mb-10">
-          <Link to="/" className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">
+          <Link to="/" viewTransition className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
           </Link>
@@ -187,26 +187,29 @@ export default function Auth() {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} noValidate className="space-y-5">
-            {!isLogin && (
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email Address
-                </label>
-                <input
-                  required
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-sm"
-                />
+          <form onSubmit={handleSubmit} noValidate className="space-y-0">
+            <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${!isLogin ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+              <div className="overflow-hidden">
+                <div className="pb-5">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    required={!isLogin}
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-sm"
+                  />
+                </div>
               </div>
-            )}
-            <div>
+            </div>
+
+            <div className="pb-5">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 {isLogin ? 'Username or Email' : 'Username'}
-                <span className="text-xs text-gray-400 ml-2 font-normal">(Case-sensitive)</span>
+                <span className={`text-xs text-gray-400 ml-2 font-normal transition-opacity duration-300 delay-100 ${!isLogin ? 'opacity-100' : 'opacity-0'}`}>(Case-sensitive)</span>
               </label>
               <input
                 required
@@ -217,7 +220,7 @@ export default function Auth() {
                 className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-sm"
               />
             </div>
-            <div>
+            <div className="pb-2">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Password
               </label>
@@ -240,13 +243,7 @@ export default function Auth() {
               </div>
             </div>
 
-            {isLogin && (
-              <div className="text-right">
-                <button type="button" className="text-sm text-gray-500 hover:text-green-600 transition-colors">
-                  Forgot password?
-                </button>
-              </div>
-            )}
+
 
             <button
               type="submit"

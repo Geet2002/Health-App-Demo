@@ -15,7 +15,7 @@ export default function Landing() {
   }, [user, navigate]);
 
   return (
-    <div className="min-h-screen bg-white overflow-x-hidden">
+    <div className="min-h-screen bg-white overflow-x-hidden animate-fade-in-down">
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -26,15 +26,27 @@ export default function Landing() {
             <span className="text-xl font-bold text-gray-900">CareCommunity</span>
           </div>
           <div className="hidden md:flex items-center space-x-8">
-            <a href="#features" className="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors">Features</a>
-            <a href="#about" className="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors">About Us</a>
-            <a href="#community" className="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors">Community</a>
+            <a 
+              href="#features" 
+              onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); }}
+              className="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors"
+            >Features</a>
+            <a 
+              href="#about" 
+              onClick={(e) => { e.preventDefault(); document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' }); }}
+              className="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors"
+            >About Us</a>
+            <a 
+              href="#community" 
+              onClick={(e) => { e.preventDefault(); document.getElementById('community')?.scrollIntoView({ behavior: 'smooth' }); }}
+              className="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors"
+            >Community</a>
           </div>
           <div className="flex items-center space-x-3">
-            <Link to="/login" className="text-gray-600 hover:text-gray-900 text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors">
+            <Link to="/login" viewTransition className="text-gray-600 hover:text-gray-900 text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors">
               Sign In
             </Link>
-            <Link to="/signup" className="bg-green-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-green-700 transition-all shadow-sm hover:shadow-md">
+            <Link to="/signup" viewTransition className="bg-green-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-green-700 transition-all shadow-sm hover:shadow-md">
               Get Started
             </Link>
           </div>
@@ -74,6 +86,7 @@ export default function Landing() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Link
               to="/signup"
+              viewTransition
               className="group flex items-center space-x-2 bg-green-600 text-white font-bold px-8 py-4 rounded-2xl hover:bg-green-700 transition-all shadow-lg hover:shadow-green-200 hover:shadow-xl"
             >
               <Heart className="w-5 h-5" fill="currentColor" />
@@ -82,6 +95,7 @@ export default function Landing() {
             </Link>
             <Link
               to="/login"
+              viewTransition
               className="flex items-center space-x-2 bg-white text-gray-700 font-bold px-8 py-4 rounded-2xl hover:bg-gray-50 transition-all border border-gray-200 shadow-sm"
             >
               <span>Sign In</span>
@@ -243,6 +257,7 @@ export default function Landing() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/signup"
+              viewTransition
               className="group flex items-center justify-center space-x-2 bg-white text-green-700 font-bold px-8 py-4 rounded-2xl hover:bg-green-50 transition-all shadow-lg"
             >
               <span>Create Free Account</span>
@@ -250,6 +265,7 @@ export default function Landing() {
             </Link>
             <Link
               to="/login"
+              viewTransition
               className="flex items-center justify-center space-x-2 bg-green-500/40 text-white font-bold px-8 py-4 rounded-2xl hover:bg-green-500/60 transition-all border border-green-400"
             >
               <span>I already have an account</span>
@@ -272,8 +288,8 @@ export default function Landing() {
               Built with 💚 for a healthier, more connected world.
             </p>
             <div className="flex items-center space-x-6 text-sm">
-              <Link to="/login" className="hover:text-white transition-colors">Sign In</Link>
-              <Link to="/signup" className="hover:text-white transition-colors">Sign Up</Link>
+              <Link to="/login" viewTransition className="hover:text-white transition-colors">Sign In</Link>
+              <Link to="/signup" viewTransition className="hover:text-white transition-colors">Sign Up</Link>
             </div>
           </div>
         </div>
