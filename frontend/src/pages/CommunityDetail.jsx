@@ -1,10 +1,11 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
-import { Shield, Users, Lock, Unlock, Check, X, ShieldAlert, Trash2, MessageCircle, MapPin, Clock, AlertTriangle, HelpCircle, PlusCircle, Calendar, BookOpen, ExternalLink, Link as LinkIcon, Edit2 } from 'lucide-react';
+import { Shield, Users, Lock, Unlock, Check, X, ShieldAlert, Trash2, MessageCircle, MapPin, Clock, AlertTriangle, HelpCircle, PlusCircle, Calendar, BookOpen, ExternalLink, Link as LinkIcon, Edit2, LogOut } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import MedicalBadge from '../components/MedicalBadge';
 import PostCard from '../components/PostCard';
@@ -142,6 +143,24 @@ export default function CommunityDetail() {
       fetchDetail();
     } catch (err) {
       toast.error('Error joining');
+    }
+  };
+
+  const handleLeaveCommunity = async () => {
+    const ok = await confirm({
+      title: 'Leave Community',
+      message: 'Are you sure you want to leave this community?',
+      confirmText: 'Leave',
+      type: 'danger'
+    });
+    if (!ok) return;
+    
+    try {
+      await axios.post(`${API_URL}/communities/${id}/leave`);
+      toast.success('Successfully left the community');
+      fetchDetail();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error leaving community');
     }
   };
 
@@ -323,9 +342,20 @@ export default function CommunityDetail() {
               </span>
             )}
             {myMembership?.status === 'approved' && (
-              <span className="px-4 py-2 bg-green-100 text-green-800 rounded-lg font-medium border border-green-200 flex items-center">
-                <Check className="w-4 h-4 mr-1"/> Member
-              </span>
+              <div className="flex space-x-2">
+                <span className="px-4 py-2 bg-green-100 text-green-800 rounded-lg font-medium border border-green-200 flex items-center">
+                  <Check className="w-4 h-4 mr-1"/> Member
+                </span>
+                {!isCreator && (
+                  <button 
+                    onClick={handleLeaveCommunity} 
+                    className="flex items-center text-sm font-semibold text-gray-400 hover:text-white hover:bg-red-500 border border-gray-200 hover:border-red-500 px-3 py-1.5 rounded-lg transition-all shadow-sm group"
+                    title="Leave Community"
+                  >
+                    <LogOut className="w-4 h-4 mr-1.5 text-gray-400 group-hover:text-white transition-colors" /> Leave
+                  </button>
+                )}
+              </div>
             )}
             {isAdmin && !isEditing && (
               <button 
@@ -636,8 +666,8 @@ export default function CommunityDetail() {
       )}
 
       {/* Event Details Modal */}
-      {selectedEvent && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+      {selectedEvent && createPortal(
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-150 relative animate-scale-in">
             {/* Modal Header banner */}
             <div className="h-4 bg-gradient-to-r from-primary-500 to-emerald-500 w-full" />
@@ -737,7 +767,8 @@ export default function CommunityDetail() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

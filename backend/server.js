@@ -457,6 +457,32 @@ app.get('/api/communities/:id/posts', authenticate, async (req, res) => {
   }
 });
 
+// Leave community
+app.post('/api/communities/:id/leave', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user_id = req.user.id;
+
+    // Check if the user is the creator
+    const [comms] = await pool.query(`SELECT creator_id FROM communities WHERE id = ?`, [id]);
+    if (comms.length === 0) return res.status(404).json({ error: 'Community not found' });
+    
+    if (comms[0].creator_id === user_id) {
+      return res.status(400).json({ error: 'Creator cannot leave the community. You must delete it instead.' });
+    }
+
+    await pool.query(
+      `DELETE FROM community_members WHERE community_id = ? AND user_id = ?`,
+      [id, user_id]
+    );
+
+    res.json({ message: 'Successfully left the community' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.post('/api/communities/:id/join', authenticate, async (req, res) => {
   try {
     const { id } = req.params;

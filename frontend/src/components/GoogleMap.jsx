@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 // Cache for the loading promise
 let googleMapsPromise = null;
 
-const loadGoogleMaps = (apiKey) => {
+export const loadGoogleMaps = (apiKey) => {
   if (googleMapsPromise) return googleMapsPromise;
   
   googleMapsPromise = new Promise((resolve, reject) => {

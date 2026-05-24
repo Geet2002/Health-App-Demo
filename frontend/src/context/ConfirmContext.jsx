@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Shield, Check, X, HelpCircle } from 'lucide-react';
 
 const ConfirmContext = createContext();
@@ -69,8 +70,8 @@ export function ConfirmProvider({ children }) {
   return (
     <ConfirmContext.Provider value={confirm}>
       {children}
-      {modalState.isOpen && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in">
+      {modalState.isOpen && createPortal(
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-gray-100 relative animate-scale-in">
             {/* Intent stripe */}
             <div className={`h-1.5 w-full ${theme.stripe}`} />
@@ -116,10 +117,12 @@ export function ConfirmProvider({ children }) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </ConfirmContext.Provider>
   );
 }
 
 export const useConfirm = () => useContext(ConfirmContext);
+

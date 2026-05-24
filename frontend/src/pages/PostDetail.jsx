@@ -262,16 +262,25 @@ export default function PostDetail() {
                 {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
               </span>
             </div>
-            
-            {user && post.author_id === user.id && (
-              <button 
-                onClick={handleDeletePost} 
-                className="p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 rounded-full transition-colors"
-                title="Delete Post"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              <Link to={`/user/${post.author_id}`} className="flex items-center gap-2 hover:bg-gray-50 pr-3 p-1 rounded-full transition-all border border-transparent hover:border-gray-200 shadow-sm hover:shadow bg-white">
+                <Avatar src={post.author_profile_picture} name={post.author_name} size="w-7 h-7" />
+                <span className="text-sm font-medium text-gray-700 flex items-center">
+                  {post.author_name || 'Anonymous User'}
+                  <MedicalBadge isMedicalProfessional={post.is_medical_professional} />
+                </span>
+              </Link>
+
+              {user && post.author_id === user.id && (
+                <button 
+                  onClick={handleDeletePost} 
+                  className="p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 rounded-full transition-colors bg-white shadow-sm hover:shadow"
+                  title="Delete Post"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           <h1 className={`text-3xl font-extrabold mb-4 leading-tight ${post.type === 'emergency' ? 'text-emergency-700' : 'text-gray-900'}`}>
@@ -306,7 +315,7 @@ export default function PostDetail() {
                   <span>Location: {locText}</span>
                 </div>
                 {locPos && (
-                  <div className="h-48 w-full rounded-xl overflow-hidden border border-gray-200 relative z-0">
+                  <div className="h-72 w-full rounded-xl overflow-hidden border border-gray-200 relative z-0">
                     <GoogleMap 
                       center={locPos} 
                       zoom={15} 
@@ -320,19 +329,7 @@ export default function PostDetail() {
             );
           })()}
 
-          <div className="mt-8 pt-6 border-t border-gray-100 flex items-center text-gray-600">
-            <Link to={`/user/${post.author_id}`} className="hover:opacity-85 transition-opacity mr-3 shrink-0">
-              <Avatar src={post.author_profile_picture} name={post.author_name} size="w-12 h-12" />
-            </Link>
-            <div>
-              <p className="text-sm font-semibold text-gray-900 flex items-center">
-                <Link to={`/user/${post.author_id}`} className="hover:text-primary-600 transition-colors flex items-center">
-                  {post.author_name || 'Anonymous User'}
-                  <MedicalBadge isMedicalProfessional={post.is_medical_professional} />
-                </Link>
-              </p>
-            </div>
-          </div>
+          {/* Removed bottom user info block */}
         </div>
       </div>
 

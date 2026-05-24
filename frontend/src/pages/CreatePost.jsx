@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { AlertCircle, FileText, MapPin, Send, Map as MapIcon, Mic, Loader2, Locate } from 'lucide-react';
 import useSpeechToText from '../hooks/useSpeechToText';
-import GoogleMap from '../components/GoogleMap';
+import GoogleMap, { loadGoogleMaps } from '../components/GoogleMap';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -13,6 +13,7 @@ export default function CreatePost() {
   const navigate = useNavigate();
   const loc = useLocation();
   const queryParams = new URLSearchParams(loc.search);
+  const mapsApiKey = import.meta.env.VITE_MAPJS_AIP_KEY || import.meta.env.VITE_MAPS_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
   const [type, setType] = useState(queryParams.get('type') || 'query');
   const [title, setTitle] = useState('');
@@ -91,8 +92,8 @@ export default function CreatePost() {
         setShowMap(true);
         // Reverse geocode to get a readable address
         if (!locationText) {
-          if (window.google && window.google.maps) {
-            const geocoder = new window.google.maps.Geocoder();
+          loadGoogleMaps(mapsApiKey).then((google) => {
+            const geocoder = new google.maps.Geocoder();
             geocoder.geocode({ location: p }, (results, status) => {
               if (status === 'OK' && results[0]) {
                 setLocationText(results[0].formatted_address);
@@ -100,9 +101,9 @@ export default function CreatePost() {
                 setLocationText('');
               }
             });
-          } else {
+          }).catch(() => {
             setLocationText('');
-          }
+          });
         }
       }, () => {
         // user denied or error
@@ -123,23 +124,23 @@ export default function CreatePost() {
           setShowMap(true);
           
           // Reverse geocode using Google Maps API
-          if (window.google && window.google.maps) {
-            const geocoder = new window.google.maps.Geocoder();
+          loadGoogleMaps(mapsApiKey).then((google) => {
+            const geocoder = new google.maps.Geocoder();
             geocoder.geocode({ location: p }, (results, status) => {
               if (status === 'OK' && results[0]) {
                 setLocationText(results[0].formatted_address);
                 toast.success('Location reset to current position');
               } else {
-                setLocationText(`${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`);
+                setLocationText('');
                 toast.success('Location reset to current coordinates');
               }
               setGeocoding(false);
             });
-          } else {
-            setLocationText(`${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`);
+          }).catch(() => {
+            setLocationText('');
             toast.success('Location reset to current coordinates');
             setGeocoding(false);
-          }
+          });
         },
         (err) => {
           console.error(err);
@@ -352,52 +353,35 @@ export default function CreatePost() {
                           setGeocodeError('');
                           setGeocoding(true);
                           try {
-                            if (window.google && window.google.maps) {
-                              const geocoder = new window.google.maps.Geocoder();
-                              geocoder.geocode({ address: locationText }, async (results, status) => {
-                                if (status === 'OK' && results[0]) {
-                                  const loc = results[0].geometry.location;
-                                  const p = { lat: loc.lat(), lng: loc.lng() };
-                                  setPosition(p);
-                                  setShowMap(true);
-                                  setGeocoding(false);
-                                } else {
-                                  console.warn('Google Geocoding failed (status: ' + status + '). Trying OpenStreetMap fallback...');
-                                  // Fallback to OpenStreetMap Nominatim
-                                  try {
-                                    const q = encodeURIComponent(locationText);
-                                    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
-                                    const data = await res.json();
-                                    if (!data || data.length === 0) {
-                                      setGeocodeError('Location not found');
-                                    } else {
-                                      const lat = parseFloat(data[0].lat);
-                                      const lon = parseFloat(data[0].lon);
-                                      setPosition({ lat, lng: lon });
-                                      setShowMap(true);
-                                    }
-                                  } catch (err) {
-                                    setGeocodeError('Location not found or geocoding failed');
-                                  } finally {
-                                    setGeocoding(false);
-                                  }
-                                }
-                              });
-                            } else {
-                              // Fallback to OpenStreetMap Nominatim
-                              const q = encodeURIComponent(locationText);
-                              const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
-                              const data = await res.json();
-                              if (!data || data.length === 0) {
-                                setGeocodeError('Location not found');
-                              } else {
-                                const lat = parseFloat(data[0].lat);
-                                const lon = parseFloat(data[0].lon);
-                                setPosition({ lat, lng: lon });
+                            const google = await loadGoogleMaps(mapsApiKey);
+                            const geocoder = new google.maps.Geocoder();
+                            geocoder.geocode({ address: locationText }, async (results, status) => {
+                              if (status === 'OK' && results[0]) {
+                                const lat = results[0].geometry.location.lat();
+                                const lng = results[0].geometry.location.lng();
+                                setPosition({ lat, lng });
                                 setShowMap(true);
+                                setGeocoding(false);
+                              } else {
+                                try {
+                                  const q = encodeURIComponent(locationText);
+                                  const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
+                                  const data = await res.json();
+                                  if (!data || data.length === 0) {
+                                    setGeocodeError('Location not found');
+                                  } else {
+                                    const lat = parseFloat(data[0].lat);
+                                    const lon = parseFloat(data[0].lon);
+                                    setPosition({ lat, lng: lon });
+                                    setShowMap(true);
+                                  }
+                                } catch (err) {
+                                  setGeocodeError('Location not found or geocoding failed');
+                                } finally {
+                                  setGeocoding(false);
+                                }
                               }
-                              setGeocoding(false);
-                            }
+                            });
                           } catch (err) {
                             setGeocodeError('Failed to find location');
                             setGeocoding(false);
@@ -430,8 +414,8 @@ export default function CreatePost() {
                       onMapClick={(coords) => {
                         setPosition(coords);
                         // Reverse geocode to fill location name
-                        if (window.google && window.google.maps) {
-                          const geocoder = new window.google.maps.Geocoder();
+                        loadGoogleMaps(mapsApiKey).then((google) => {
+                          const geocoder = new google.maps.Geocoder();
                           geocoder.geocode({ location: coords }, (results, status) => {
                             if (status === 'OK' && results[0]) {
                               setLocationText(results[0].formatted_address);
@@ -439,9 +423,9 @@ export default function CreatePost() {
                               setLocationText('');
                             }
                           });
-                        } else {
+                        }).catch(() => {
                           setLocationText('');
-                        }
+                        });
                       }}
                       scrollWheelZoom={true}
                       style={{ height: '100%', width: '100%' }}
