@@ -4,13 +4,15 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { 
   AlertTriangle, HelpCircle, MessageCircle, MapPin, Clock, 
-  Trash2, Search, PlusCircle, User, Phone, CheckCircle, ChevronRight
+  Trash2, Search, PlusCircle, User, Phone, CheckCircle, ChevronRight,
+  Activity, Stethoscope
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { socket } from '../socket';
 import PostCard from '../components/PostCard';
+import PageHeader from '../components/PageHeader';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -167,62 +169,54 @@ export default function Feed() {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Dynamic Sleek Header Box */}
-      <div className="bg-white/85 backdrop-blur-md p-3.5 sm:p-5 rounded-2xl border border-gray-150 shadow-sm relative overflow-hidden mb-4 sm:mb-6">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-primary-100/5 rounded-full filter blur-3xl pointer-events-none"></div>
-        <div className="relative z-10 flex flex-col space-y-3 sm:space-y-4">
-          
-          {/* Title Row */}
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">Community Feed</h1>
-            <p className="hidden sm:block text-xs text-gray-500 font-medium mt-0.5">Discover medical queries, check updates, and support emergencies.</p>
+      <PageHeader 
+        title="Community Feed"
+        description="Discover medical queries, check updates, and support emergencies."
+      >
+        {/* Controls Row (Side-by-Side on Desktop/Tablet) */}
+        <div className="flex flex-col md:flex-row md:items-center gap-3 w-full">
+          {/* Real-time search */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search posts, locations..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-50 border border-gray-100 text-xs sm:text-sm placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-1.5 focus:ring-primary-500 focus:bg-white transition-all shadow-inner"
+            />
           </div>
 
-          {/* Controls Row (Side-by-Side on Desktop/Tablet) */}
-          <div className="flex flex-col md:flex-row md:items-center gap-3 w-full">
-            {/* Real-time search */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search posts, locations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-50 border border-gray-100 text-xs sm:text-sm placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-1.5 focus:ring-primary-500 focus:bg-white transition-all shadow-inner"
-              />
-            </div>
-
-            {/* Segmented Control Bar (Responsive Labels to prevent mobile wrapping) */}
-            <div className="flex bg-gray-100/70 p-1 rounded-xl w-full md:w-auto md:min-w-[320px] shrink-0">
-              {[
-                { id: 'all', label: 'All Feeds', shortLabel: 'All' },
-                { id: 'global', label: 'Global', shortLabel: 'Global' },
-                { id: 'communities', label: 'My Communities', shortLabel: 'Communities' }
-              ].map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setFilter(f.id)}
-                  className={`flex-1 py-1.5 px-2 text-xs font-bold rounded-lg transition-all duration-200 ${
-                    filter === f.id
-                      ? 'bg-white text-primary-700 shadow-sm font-extrabold'
-                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/30'
-                  }`}
-                >
-                  <span className="hidden xs:inline">{f.id === 'communities' ? 'Communities' : f.label}</span>
-                  <span className="xs:hidden">{f.shortLabel}</span>
-                </button>
-              ))}
-            </div>
+          {/* Segmented Control Bar (Responsive Labels to prevent mobile wrapping) */}
+          <div className="flex bg-gray-100/70 p-1 rounded-xl w-full md:w-auto md:min-w-[320px] shrink-0">
+            {[
+              { id: 'all', label: 'All Feeds', shortLabel: 'All' },
+              { id: 'global', label: 'Global', shortLabel: 'Global' },
+              { id: 'communities', label: 'My Communities', shortLabel: 'Communities' }
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id)}
+                className={`flex-1 py-1.5 px-2 text-xs font-bold rounded-lg transition-all duration-200 ${
+                  filter === f.id
+                    ? 'bg-white text-primary-700 shadow-sm font-extrabold'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/30'
+                }`}
+              >
+                <span className="hidden xs:inline">{f.id === 'communities' ? 'Communities' : f.label}</span>
+                <span className="xs:hidden">{f.shortLabel}</span>
+              </button>
+            ))}
           </div>
-          
         </div>
-      </div>
+      </PageHeader>
 
       {/* Horizontal categories carousel (Optimized for Mobile scroll) */}
       <div className="flex items-center space-x-2 overflow-x-auto pb-2 pt-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth">
         {[
           { id: 'all', label: 'All Posts', icon: null },
-          { id: 'emergency', label: '🚨 Emergencies', icon: AlertTriangle },
-          { id: 'query', label: '❓ Medical Queries', icon: HelpCircle }
+          { id: 'emergency', label: 'Emergencies', icon: Activity },
+          { id: 'query', label: 'Queries', icon: Stethoscope }
         ].map((cat) => {
           const Icon = cat.icon;
           const isActive = categoryFilter === cat.id;
@@ -238,7 +232,7 @@ export default function Feed() {
                   : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
               }`}
             >
-              {isActive && Icon && <Icon className="w-3.5 h-3.5 mr-0.5 animate-pulse" />}
+              {Icon && <Icon className={`w-3.5 h-3.5 ${isActive ? 'animate-pulse' : cat.id === 'emergency' ? 'text-red-500' : 'text-primary-500'}`} />}
               <span>{cat.label}</span>
             </button>
           );

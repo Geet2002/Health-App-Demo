@@ -5,6 +5,8 @@ import axios from 'axios';
 import { Users, Lock, Unlock, Plus, Search, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
+import { CommunityCardSkeleton } from '../components/Skeletons';
+import PageHeader from '../components/PageHeader';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -93,42 +95,46 @@ export default function Communities() {
   const myComms = filteredCommunities.filter(c => c.user_status === 'approved');
   const otherComms = filteredCommunities.filter(c => c.user_status !== 'approved');
 
-  if (loading) return <div className="text-center py-12">Loading...</div>;
+  if (loading) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-4 sm:space-y-10 pb-32 px-4 sm:px-6 pt-0 sm:pt-8">
+        <div className="mb-6 mt-2">
+           <div className="h-8 bg-gray-200 rounded w-1/3 animate-pulse"></div>
+        </div>
+        <CommunityCardSkeleton />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-10 animate-fade-in pb-12">
-      {/* Page Title & Create Button */}
-      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-2">
-        <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-            {user?.is_admin ? 'Health Communities (Admin View)' : 'Health Communities'}
-          </h1>
-          <p className="text-gray-500 mt-2">
-            {user?.is_admin 
-              ? 'View and monitor all health communities across the platform.' 
-              : 'Join groups or create your own safe space to connect and share.'}
-          </p>
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-10 animate-fade-in pb-32 px-4 sm:px-6 pt-0 sm:pt-8">
+      <PageHeader 
+        title={user?.is_admin ? 'Health Communities (Admin View)' : 'Health Communities'}
+        description={user?.is_admin ? 'View and monitor all health communities across the platform.' : 'Join groups or create your own safe space to connect and share.'}
+        bgColor="bg-indigo-100/20"
+        actionButton={
+          !user?.is_admin ? (
+            <Link to="/communities/create" className="inline-flex items-center justify-center p-2.5 sm:px-4 sm:py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded-xl transition-colors shrink-0 shadow-sm" title="Create Community">
+              <Plus className="w-5 h-5 sm:mr-2" />
+              <span className="hidden sm:inline">Create Community</span>
+            </Link>
+          ) : null
+        }
+      >
+        {/* Search Input */}
+        <div className="relative">
+          <label className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+            <Search className="w-5 h-5" />
+          </label>
+          <input 
+            type="search" 
+            placeholder="Search for a community by name or description..." 
+            className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-150 focus:ring-2 focus:ring-primary-500 bg-gray-50/50 shadow-inner transition-all"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
-        {!user?.is_admin && (
-          <Link to="/communities/create" className="btn-primary flex items-center justify-center shrink-0">
-            <Plus className="w-4 h-4 mr-2" /> Create Community
-          </Link>
-        )}
-      </div>
-
-      {/* Search Input */}
-      <div className="relative mb-6">
-        <label className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
-          <Search className="w-5 h-5" />
-        </label>
-        <input 
-          type="search" 
-          placeholder="Search for a community by name or description..." 
-          className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 bg-white shadow-sm transition-all"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+      </PageHeader>
 
       {/* Admin Unified View vs Regular User View */}
       {user?.is_admin ? (

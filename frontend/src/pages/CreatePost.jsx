@@ -181,69 +181,63 @@ export default function CreatePost() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto py-8">
-      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 relative">
-        {/* Header gradient line */}
-        <div className={`h-2 w-full ${type === 'emergency' ? 'bg-gradient-to-r from-emergency-500 to-orange-500' : 'bg-gradient-to-r from-primary-500 to-teal-500'}`}></div>
-        
-        <div className="p-8">
-          <h1 className="text-3xl font-extrabold text-gray-900 mb-8">
+    <div className="max-w-2xl mx-auto py-6 sm:py-8 animate-fade-in pb-32 px-4 sm:px-6">
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden relative">
+        <div className="p-5 sm:p-8">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-6">
             {type === 'emergency' ? 'Report an Emergency' : 'Ask the Community'}
           </h1>
           
-          <div className="flex bg-gray-100 p-1 rounded-xl mb-8 space-x-1">
+          <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
             <button
               type="button"
-              className={`flex-1 flex justify-center py-2.5 px-4 rounded-lg text-sm font-semibold transition-all ${
-                type === 'query' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'
+              className={`flex-1 flex justify-center items-center py-1.5 sm:py-2.5 px-2 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all outline-none whitespace-nowrap ${
+                type === 'query' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => setType('query')}
             >
-              <FileText className="w-4 h-4 mr-2" />
+              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
               General Query
             </button>
             <button
               type="button"
-              className={`flex-1 flex justify-center py-2.5 px-4 rounded-lg text-sm font-semibold transition-all ${
-                type === 'emergency' ? 'bg-emergency-500 text-white shadow shadow-emergency-500/30' : 'text-gray-500 hover:text-gray-700'
+              className={`flex-1 flex justify-center items-center py-1.5 sm:py-2.5 px-2 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all outline-none whitespace-nowrap ${
+                type === 'emergency' ? 'bg-emergency-500 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => setType('emergency')}
             >
-              <AlertCircle className="w-4 h-4 mr-2" />
+              <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
               Emergency Alert
             </button>
           </div>
 
-          {/* Language selector for speech recognition */}
-          {(titleIsSupported || contentIsSupported) && (
-            <div className="flex items-center gap-2 mb-4 p-3 bg-gray-50 border border-gray-200 rounded-xl">
-              <Mic className="w-4 h-4 text-gray-400 shrink-0" />
-              <span className="text-sm text-gray-500 shrink-0">Speech language:</span>
-              <div className="flex gap-1.5 flex-wrap">
-                {SPEECH_LANGUAGES.map((l) => (
-                  <button
-                    key={l.code}
-                    type="button"
-                    onClick={() => setSpeechLang(l.code)}
-                    className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                      speechLang === l.code
-                        ? 'bg-primary-600 text-white shadow-sm'
-                        : 'bg-white border border-gray-200 text-gray-600 hover:border-primary-300 hover:text-primary-600'
-                    }`}
-                  >
-                    <span>{l.flag}</span>
-                    {l.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="relative">
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                {type === 'emergency' ? 'What happened?' : 'What do you need help with?'}
-              </label>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-3 sm:mb-4 gap-2.5 sm:gap-2">
+                <label htmlFor="title" className="block text-sm font-bold text-gray-700">
+                  {type === 'emergency' ? 'What happened?' : 'What do you need help with?'}
+                </label>
+                {/* Language selector for speech recognition */}
+                {(titleIsSupported || contentIsSupported) && (
+                  <div className="flex items-center gap-1.5">
+                    <Mic className="w-3.5 h-3.5 text-gray-400 mr-1" />
+                    {SPEECH_LANGUAGES.map((l) => (
+                      <button
+                        key={l.code}
+                        type="button"
+                        onClick={() => setSpeechLang(l.code)}
+                        className={`px-2 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all ${
+                          speechLang === l.code
+                            ? 'bg-primary-600 text-white shadow-sm'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                        }`}
+                      >
+                        {l.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div className="relative">
                 <input
                   id="title"
@@ -256,12 +250,12 @@ export default function CreatePost() {
                 />
                 <button
                   type="button"
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all flex items-center justify-center ${
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all flex items-center justify-center outline-none ${
                     titleIsListening 
                       ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 scale-105 hover:bg-red-600 animate-pulse' 
                       : titleIsTranscribing
                         ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30 cursor-wait'
-                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                        : 'bg-transparent text-gray-400 hover:bg-gray-100 hover:text-primary-600'
                   }`}
                   onClick={() => {
                     if (titleIsListening) {
@@ -296,12 +290,12 @@ export default function CreatePost() {
                 />
                 <button
                   type="button"
-                  className={`absolute right-2 top-2 p-2 rounded-lg transition-all flex items-center justify-center ${
+                  className={`absolute right-2 top-2 p-2 rounded-lg transition-all flex items-center justify-center outline-none ${
                     contentIsListening 
                       ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 scale-105 hover:bg-red-600 animate-pulse' 
                       : contentIsTranscribing
                         ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30 cursor-wait'
-                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                        : 'bg-transparent text-gray-400 hover:bg-gray-100 hover:text-primary-600'
                   }`}
                   onClick={() => {
                     if (contentIsListening) {
@@ -320,31 +314,35 @@ export default function CreatePost() {
               </div>
             </div>
 
-            {type === 'emergency' && (
-              <div className="animate-fade-in space-y-3">
+            <div 
+              className={`transition-all duration-500 ease-in-out overflow-hidden ${
+                type === 'emergency' ? 'max-h-[800px] opacity-100 mt-6' : 'max-h-0 opacity-0 mt-0'
+              }`}
+            >
+              <div className="space-y-3">
                 <div>
-                  <label htmlFor="locationText" className="flex text-sm font-medium text-gray-700 mb-1 items-center justify-between">
+                  <label htmlFor="locationText" className="flex flex-col sm:flex-row text-sm font-medium text-gray-700 mb-2 sm:items-center sm:justify-between gap-2">
                     <span className="flex items-center">
                       <MapPin className="w-4 h-4 mr-1 text-emergency-500" />
                       Location Description
                     </span>
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <button
                         type="button"
                         onClick={resetToCurrentLocation}
-                        className="text-xs text-red-600 hover:text-red-700 flex items-center bg-red-50 hover:bg-red-100 px-2 py-1 rounded-md transition-all active:scale-95 border border-red-100"
+                        className="text-[11px] sm:text-xs font-bold text-red-600 hover:text-red-700 flex items-center bg-red-50 hover:bg-red-100 px-2 py-1.5 rounded-md transition-all active:scale-95 border border-red-100"
                         title="Locate me again"
                       >
                         <Locate className="w-3 h-3 mr-1" />
-                        Use Current Location
+                        Current Location
                       </button>
                       <button 
                         type="button" 
                         onClick={() => setShowMap(!showMap)}
-                        className="text-xs text-primary-600 hover:text-primary-700 flex items-center bg-primary-50 px-2 py-1 rounded-md"
+                        className="text-[11px] sm:text-xs font-bold text-gray-600 hover:text-gray-900 flex items-center bg-gray-100 hover:bg-gray-200 px-2 py-1.5 rounded-md transition-colors border border-gray-200"
                       >
                         <MapIcon className="w-3 h-3 mr-1" />
-                        {showMap ? 'Hide Map' : 'Pin Exact Location on Map'}
+                        {showMap ? 'Hide Map' : 'Show Map'}
                       </button>
                       <button
                         type="button"
@@ -387,9 +385,9 @@ export default function CreatePost() {
                             setGeocoding(false);
                           }
                         }}
-                        className="text-xs text-primary-600 hover:text-primary-700 flex items-center bg-primary-50 px-2 py-1 rounded-md"
+                        className="text-[11px] sm:text-xs font-bold text-primary-600 hover:text-primary-700 flex items-center bg-primary-50 hover:bg-primary-100 px-2 py-1.5 rounded-md transition-colors border border-primary-100"
                       >
-                        {geocoding ? 'Finding...' : 'Find on map'}
+                        {geocoding ? 'Finding...' : 'Find'}
                       </button>
                     </div>
                   </label>
@@ -438,13 +436,13 @@ export default function CreatePost() {
                   </div>
                 )}
               </div>
-            )}
+            </div>
 
-            <div className="pt-4 border-t border-gray-100 flex justify-end">
+            <div className="pt-4 sm:pt-6 border-t border-gray-100 flex justify-end items-center mt-2">
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="px-6 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-transparent rounded-lg mr-3 transition-colors"
+                className="px-4 py-2 sm:px-6 sm:py-2.5 text-sm font-bold text-gray-500 hover:text-gray-900 bg-transparent rounded-xl mr-2 sm:mr-3 transition-colors"
                 disabled={loading}
               >
                 Cancel
@@ -452,14 +450,14 @@ export default function CreatePost() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`flex items-center px-6 py-2.5 rounded-lg text-sm font-bold shadow-md transition-all ${
+                className={`flex items-center px-6 py-2 sm:py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all whitespace-nowrap ${
                   type === 'emergency' 
-                    ? 'bg-emergency-600 hover:bg-emergency-500 text-white focus:ring-emergency-500 focus:ring-offset-emergency-50' 
-                    : 'bg-primary-600 hover:bg-primary-500 text-white focus:ring-primary-500 focus:ring-offset-primary-50'
+                    ? 'bg-emergency-600 hover:bg-emergency-500 text-white focus:ring-emergency-500 focus:ring-offset-emergency-50 hover:shadow-md' 
+                    : 'bg-primary-600 hover:bg-primary-500 text-white focus:ring-primary-500 focus:ring-offset-primary-50 hover:shadow-md'
                 } focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed`}
               >
-                {loading ? 'Posting...' : 'Post to Community'}
-                {!loading && <Send className="w-4 h-4 ml-2" />}
+                {loading ? 'Posting...' : 'Post'}
+                {!loading && <Send className="w-4 h-4 ml-1.5" />}
               </button>
             </div>
           </form>

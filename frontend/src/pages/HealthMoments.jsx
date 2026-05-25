@@ -10,6 +10,8 @@ import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
 import useSpeechToText from '../hooks/useSpeechToText';
 import { socket } from '../socket';
+import { MomentSkeleton } from '../components/Skeletons';
+import PageHeader from '../components/PageHeader';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -168,6 +170,29 @@ export default function HealthMoments() {
     }
   };
 
+  const handleDeleteComment = async (shareId, commentId) => {
+    const ok = await confirm({
+      title: 'Delete Comment',
+      message: 'Are you sure you want to delete this comment? This action is permanent.',
+      confirmText: 'Delete',
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow-md',
+      type: 'danger'
+    });
+    if (!ok) return;
+
+    try {
+      await axios.delete(`${API_URL}/health-share-comments/${commentId}`);
+      // Refresh comments
+      const res = await axios.get(`${API_URL}/health-shares/${shareId}/comments`);
+      setComments({ ...comments, [shareId]: res.data });
+      fetchShares(); // Refresh shares to get updated comment count
+      toast.success('Comment deleted successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Error deleting comment');
+    }
+  };
+
   const renderMedia = (share) => {
     if (!share.media_url) return null;
     const url = `${API_URL.replace('/api', '')}${share.media_url}`;
@@ -186,19 +211,26 @@ export default function HealthMoments() {
     return null;
   };
 
-  if (loading) return <div className="text-center py-12">Loading...</div>;
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-8 pb-12">
+        <div className="mb-4 sm:mb-8">
+          <div className="h-8 bg-gray-200 rounded w-1/3 animate-pulse"></div>
+          <div className="h-4 bg-gray-200 rounded w-2/3 mt-2 animate-pulse hidden sm:block"></div>
+        </div>
+        <MomentSkeleton />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-fade-in pb-12">
       
-      <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-          {user?.is_admin ? 'Health Moments (Admin View)' : 'Health Moments'}
-        </h1>
-        <p className="text-gray-500 mt-2 text-lg">
-          {user?.is_admin ? 'Monitor public health moments and community updates.' : 'Share your journey, photos, and voice with the community.'}
-        </p>
-      </div>
+      <PageHeader 
+        title={user?.is_admin ? 'Health Moments (Admin View)' : 'Health Moments'}
+        description={user?.is_admin ? 'Monitor public health moments and community updates.' : 'Share your journey, photos, and voice with the community.'}
+        bgColor="bg-indigo-100/20"
+      />
 
       {(user?.is_admin === 1 || user?.is_admin === true) ? (
         <div className="flex items-center text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-6 shadow-sm">
@@ -241,8 +273,8 @@ export default function HealthMoments() {
                 </div>
               )}
 
-              <div className="mt-2 pt-2 border-t border-gray-50 flex flex-col sm:flex-row items-center justify-between space-y-3 sm:space-y-0">
-                <div className="flex space-x-1 text-primary-600 items-center w-full sm:w-auto">
+              <div className="mt-2 pt-2 border-t border-gray-50 flex flex-row items-center justify-between">
+                <div className="flex space-x-1 text-primary-600 items-center">
                   <button type="button" onClick={() => fileInputRef.current.click()} className="p-1.5 hover:bg-primary-50 rounded-full transition tooltip-trigger">
                     <ImageIcon className="w-5 h-5" />
                   </button>
@@ -257,7 +289,7 @@ export default function HealthMoments() {
                   </button>
 
                   <select
-                    className="text-sm bg-transparent border-none text-gray-500 focus:ring-0 cursor-pointer p-0 pr-4"
+                    className="text-xs sm:text-sm bg-transparent border-none text-gray-500 focus:ring-0 cursor-pointer p-0 pr-4"
                     value={speechLang}
                     onChange={(e) => setSpeechLang(e.target.value)}
                     disabled={isListening || isTranscribing}
@@ -271,7 +303,7 @@ export default function HealthMoments() {
                 <button 
                   type="submit" 
                   disabled={isPosting || isListening || isTranscribing || (!content.trim() && !mediaFile)}
-                  className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-1.5 text-sm rounded-full font-bold shadow-sm transition-colors disabled:opacity-50 w-full sm:w-auto"
+                  className="bg-primary-600 hover:bg-primary-700 text-white px-4 sm:px-5 py-1.5 text-sm rounded-full font-bold shadow-sm transition-colors disabled:opacity-50"
                 >
                   {isPosting ? 'Posting...' : isTranscribing ? 'Transcribing...' : isListening ? 'Listening...' : 'Share'}
                 </button>
@@ -382,7 +414,7 @@ export default function HealthMoments() {
                       <p className="text-center text-sm text-gray-500 py-2">No comments yet.</p>
                     ) : (
                       comments[share.id]?.map(comment => (
-                        <div key={comment.id} className="flex space-x-3">
+                        <div key={comment.id} className="flex space-x-3 group relative">
                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-xs shrink-0 overflow-hidden">
                             <Link to={`/user/${comment.author_id}`} className="w-full h-full flex items-center justify-center hover:bg-gray-300 transition-colors">
                               {comment.author_profile_picture ? (
@@ -392,15 +424,26 @@ export default function HealthMoments() {
                               )}
                             </Link>
                           </div>
-                          <div className="bg-white px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm text-sm border border-gray-100">
-                          <div className="flex items-center">
-                            <Link to={`/user/${comment.author_id}`} className="font-bold text-gray-900 mr-2 hover:text-primary-600 transition-colors">
-                              {comment.author_name}
-                            </Link>
-                            <MedicalBadge isMedicalProfessional={comment.is_medical_professional} className="w-3.5 h-3.5 mr-2 text-blue-600" />
-                            <span className="text-xs text-gray-500">{formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}</span>
-                          </div>
-                            <span className="text-gray-700">{comment.content}</span>
+                          <div className="bg-white px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm text-sm border border-gray-100 flex-1 relative">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <Link to={`/user/${comment.author_id}`} className="font-bold text-gray-900 mr-2 hover:text-primary-600 transition-colors">
+                                  {comment.author_name}
+                                </Link>
+                                <MedicalBadge isMedicalProfessional={comment.is_medical_professional} className="w-3.5 h-3.5 mr-2 text-blue-600" />
+                                <span className="text-xs text-gray-500">{formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}</span>
+                              </div>
+                              {user && (user.id === comment.author_id || user.is_admin === 1 || user.is_admin === true) && (
+                                <button 
+                                  onClick={() => handleDeleteComment(share.id, comment.id)}
+                                  className="text-gray-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-red-50"
+                                  title="Delete comment"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                            <span className="text-gray-700 block mt-1">{comment.content}</span>
                           </div>
                         </div>
                       ))

@@ -37,24 +37,22 @@ export default function CreateBloodRequest() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto py-8">
-      <button 
-        onClick={() => navigate(-1)}
-        className="mb-6 flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4 mr-1" /> Back
-      </button>
+    <div className="max-w-2xl mx-auto py-6 sm:py-8 px-4 sm:px-0 pb-32">
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 relative">
+        <div className="p-6 sm:p-8">
+          <button 
+            onClick={() => navigate(-1)}
+            className="mb-6 flex items-center text-sm font-bold text-gray-500 hover:text-gray-900 transition-colors w-fit"
+          >
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back
+          </button>
 
-      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-red-100 relative">
-        <div className="h-2 w-full bg-gradient-to-r from-red-500 to-orange-500"></div>
-        
-        <div className="p-8">
-          <div className="flex items-center mb-8">
-            <div className="bg-red-100 p-3 rounded-full mr-4">
-              <Droplet className="w-8 h-8 text-red-600" />
+          <div className="flex items-center mb-6 sm:mb-8">
+            <div className="bg-red-50 border border-red-100 p-3.5 rounded-full mr-4 shadow-sm">
+              <Droplet className="w-7 h-7 text-red-500" />
             </div>
             <div>
-              <h1 className="text-3xl font-extrabold text-gray-900">Request Blood</h1>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Request Blood</h1>
               <p className="text-gray-500 text-sm mt-1">Submit an urgent request for blood donation.</p>
             </div>
           </div>
@@ -62,7 +60,7 @@ export default function CreateBloodRequest() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="sm:col-span-2">
-                <label htmlFor="patient_name" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+                <label htmlFor="patient_name" className="block text-sm font-bold text-gray-700 mb-1 flex items-center">
                   <User className="w-4 h-4 mr-1 text-gray-400" /> Patient Name
                 </label>
                 <input
@@ -71,31 +69,36 @@ export default function CreateBloodRequest() {
                   required
                   type="text"
                   placeholder="Full name of the patient"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-red-500 transition-colors bg-gray-50 focus:bg-white"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-red-500 transition-colors bg-gray-50 focus:bg-white text-gray-900 font-medium"
                   value={formData.patient_name}
                   onChange={handleChange}
                 />
               </div>
 
               <div>
-                <label htmlFor="blood_group" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+                <label htmlFor="blood_group" className="block text-sm font-bold text-gray-700 mb-1 flex items-center">
                   <Droplet className="w-4 h-4 mr-1 text-red-500" /> Blood Group
                 </label>
-                <select
-                  id="blood_group"
-                  name="blood_group"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-red-500 transition-colors bg-gray-50 focus:bg-white appearance-none"
-                  value={formData.blood_group}
-                  onChange={handleChange}
-                >
-                  {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => (
-                    <option key={bg} value={bg}>{bg}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    id="blood_group"
+                    name="blood_group"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-red-500 transition-colors bg-gray-50 focus:bg-white appearance-none text-gray-900 font-medium cursor-pointer"
+                    value={formData.blood_group}
+                    onChange={handleChange}
+                  >
+                    {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => (
+                      <option key={bg} value={bg}>{bg}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  </div>
+                </div>
               </div>
 
               <div>
-                <label htmlFor="units_required" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+                <label htmlFor="units_required" className="block text-sm font-bold text-gray-700 mb-1 flex items-center">
                   <Hash className="w-4 h-4 mr-1 text-gray-400" /> Units Required
                 </label>
                 <input
@@ -105,14 +108,14 @@ export default function CreateBloodRequest() {
                   type="number"
                   min="1"
                   max="50"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-red-500 transition-colors bg-gray-50 focus:bg-white"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-red-500 transition-colors bg-gray-50 focus:bg-white text-gray-900 font-medium"
                   value={formData.units_required}
                   onChange={handleChange}
                 />
               </div>
 
               <div className="sm:col-span-2">
-                <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+                <label htmlFor="location" className="block text-sm font-bold text-gray-700 mb-1 flex items-center">
                   <MapPin className="w-4 h-4 mr-1 text-gray-400" /> Exact Location (Hospital Name & Area)
                 </label>
                 <input
@@ -121,36 +124,41 @@ export default function CreateBloodRequest() {
                   required
                   type="text"
                   placeholder="e.g. City Hospital, Downtown"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-red-500 transition-colors bg-gray-50 focus:bg-white"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-red-500 transition-colors bg-gray-50 focus:bg-white text-gray-900 font-medium"
                   value={formData.location}
                   onChange={handleChange}
                 />
               </div>
 
               <div className="sm:col-span-2">
-                <label htmlFor="urgency" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+                <label htmlFor="urgency" className="block text-sm font-bold text-gray-700 mb-1 flex items-center">
                   <AlertCircle className="w-4 h-4 mr-1 text-orange-500" /> Urgency Level
                 </label>
-                <select
-                  id="urgency"
-                  name="urgency"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-red-500 transition-colors bg-gray-50 focus:bg-white appearance-none"
-                  value={formData.urgency}
-                  onChange={handleChange}
-                >
-                  <option value="low">Low (Next few days)</option>
-                  <option value="medium">Medium (Within 24 hours)</option>
-                  <option value="high">High (Immediate)</option>
-                  <option value="critical">Critical (Life-threatening)</option>
-                </select>
+                <div className="relative">
+                  <select
+                    id="urgency"
+                    name="urgency"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-red-500 transition-colors bg-gray-50 focus:bg-white appearance-none text-gray-900 font-medium cursor-pointer"
+                    value={formData.urgency}
+                    onChange={handleChange}
+                  >
+                    <option value="low">Low (Next few days)</option>
+                    <option value="medium">Medium (Within 24 hours)</option>
+                    <option value="high">High (Immediate)</option>
+                    <option value="critical">Critical (Life-threatening)</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="pt-6 border-t border-gray-100 flex justify-end">
+            <div className="pt-6 sm:pt-8 border-t border-gray-100 flex justify-end items-center mt-4">
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="px-6 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-transparent rounded-lg mr-3 transition-colors"
+                className="px-4 py-2 sm:px-6 sm:py-2.5 text-sm font-bold text-gray-500 hover:text-gray-900 bg-transparent rounded-xl mr-2 sm:mr-3 transition-colors"
                 disabled={loading}
               >
                 Cancel
@@ -158,10 +166,10 @@ export default function CreateBloodRequest() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex items-center px-6 py-2.5 rounded-lg text-sm font-bold shadow-md transition-all bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 focus:ring-offset-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="flex items-center px-6 py-2 sm:py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all bg-red-600 hover:bg-red-500 text-white focus:ring-red-500 focus:ring-offset-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed whitespace-nowrap"
               >
-                {loading ? 'Submitting...' : 'Post Blood Request'}
-                {!loading && <Send className="w-4 h-4 ml-2" />}
+                {loading ? 'Submitting...' : 'Post Request'}
+                {!loading && <Send className="w-4 h-4 ml-1.5" />}
               </button>
             </div>
           </form>

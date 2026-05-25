@@ -173,11 +173,11 @@ export default function PostCard({ post, currentUser, onDelete, onVote, hideComm
 
   return (
     <div className="relative group outline-none">
-      <article className={`relative flex bg-white border rounded-2xl sm:rounded-3xl transition-all duration-300 ${
+      <article className={`relative flex border rounded-2xl sm:rounded-3xl transition-all duration-300 ${
         isEmergency 
-          ? 'border-red-200 shadow-md shadow-red-50/50 hover:shadow-lg hover:shadow-red-100/50 hover:border-red-300' 
-          : 'border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200'
-      } border-l-4 ${isEmergency ? 'border-l-red-500' : 'border-l-primary-500'}`}>
+          ? 'bg-red-50/40 border-red-200 shadow-sm hover:shadow-md hover:border-red-300' 
+          : 'bg-white border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200'
+      }`}>
         
         {/* Full card clickable link overlay (non-interactive areas pass clicks through via pointer-events-none) */}
         <Link to={`/post/${post.id}`} className="absolute inset-0 z-10 cursor-pointer" aria-label="View post details"></Link>
@@ -204,12 +204,10 @@ export default function PostCard({ post, currentUser, onDelete, onVote, hideComm
 
             {/* Badges and Delete Actions */}
             <div className="flex items-center space-x-2">
-              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider uppercase ${
-                isEmergency 
-                  ? 'bg-red-100 text-red-700 animate-pulse' 
-                  : 'bg-primary-50 text-primary-700 border border-primary-100'
+              <span className={`inline-flex items-center text-[10px] font-extrabold tracking-widest uppercase ${
+                isEmergency ? 'px-2 py-0.5 rounded-md bg-red-100 text-red-600 animate-pulse' : 'text-gray-400'
               }`}>
-                {isEmergency ? <AlertTriangle className="w-3.5 h-3.5 mr-1 text-red-600" /> : <HelpCircle className="w-3.5 h-3.5 mr-1 text-primary-500" />}
+                {isEmergency ? <AlertTriangle className="w-3.5 h-3.5 mr-1" /> : <HelpCircle className="w-3.5 h-3.5 mr-1" />}
                 {isEmergency ? 'Emergency' : 'Query'}
               </span>
 
@@ -255,41 +253,40 @@ export default function PostCard({ post, currentUser, onDelete, onVote, hideComm
             </div>
 
             {/* Interactive action buttons */}
-            <div className="flex items-center space-x-2 justify-end w-full sm:w-auto flex-shrink-0">
+            <div className="flex items-center space-x-1 justify-end w-full sm:w-auto flex-shrink-0">
               
               {/* Upvote Button / Count */}
               {currentUser?.is_admin === 1 || currentUser?.is_admin === true ? (
-                <div className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-gray-50 text-gray-500">
-                  <ThumbsUp className="w-3.5 h-3.5" />
+                <div className="flex items-center justify-center space-x-1.5 px-2 py-1.5 text-xs font-bold text-gray-500">
+                  <ThumbsUp className="w-4 h-4" />
                   <span>{votes}</span>
                 </div>
               ) : (
                 <button
                   onClick={handleVote}
-                  className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-300 focus:outline-none bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-gray-900 cursor-pointer active:scale-95"
-                  style={hasVoted ? { background: '#059669', color: '#fff' } : {}}
+                  className={`flex items-center justify-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors focus:outline-none cursor-pointer ${
+                    hasVoted ? 'text-primary-600 bg-primary-50' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
                   title="Upvote Post"
                 >
-                  <ThumbsUp className={`w-3.5 h-3.5 transition-transform duration-200 ${hasVoted ? 'fill-current scale-110' : ''}`} />
+                  <ThumbsUp className={`w-4 h-4 ${hasVoted ? 'fill-current' : ''}`} />
                   <span>{votes}</span>
                 </button>
               )}
 
               {/* Comments count / Toggle input */}
               {currentUser?.is_admin === 1 || currentUser?.is_admin === true ? (
-                <div className="flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-gray-50 text-gray-500">
-                  <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                <div className="flex items-center px-2 py-1.5 text-xs font-bold text-gray-500">
+                  <MessageCircle className="w-4 h-4 mr-1.5" />
                   <span>{post.comment_count || 0}</span>
                 </div>
               ) : (
                 <button
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowCommentInput(!showCommentInput); }}
-                  className={`flex items-center px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-300 focus:outline-none cursor-pointer active:scale-95 ${
-                    isEmergency ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                  }`}
+                  className="flex items-center px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors focus:outline-none cursor-pointer text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                   title="Add a comment"
                 >
-                  <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                  <MessageCircle className="w-4 h-4 mr-1.5" />
                   <span>{post.comment_count || 0}</span>
                 </button>
               )}
@@ -298,10 +295,10 @@ export default function PostCard({ post, currentUser, onDelete, onVote, hideComm
               <div className="relative" ref={shareMenuRef}>
                 <button
                   onClick={toggleShareMenu}
-                  className={`p-1.5 sm:p-2 hover:text-gray-800 rounded-full transition-all focus:outline-none active:scale-95 cursor-pointer ${showShareMenu ? 'bg-primary-100 text-primary-600' : 'bg-gray-50 hover:bg-gray-100 text-gray-500'}`}
+                  className={`p-1.5 sm:p-2 rounded-lg transition-colors focus:outline-none cursor-pointer ${showShareMenu ? 'text-primary-600 bg-primary-50' : 'text-gray-400 hover:text-gray-900 hover:bg-gray-50'}`}
                   title="Share Post"
                 >
-                  <Share2 className="w-3.5 h-3.5" />
+                  <Share2 className="w-4 h-4" />
                 </button>
 
                 {/* Popover Menu Expanding Towards Top */}

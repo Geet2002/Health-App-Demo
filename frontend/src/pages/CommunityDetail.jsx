@@ -9,6 +9,7 @@ import { Shield, Users, Lock, Unlock, Check, X, ShieldAlert, Trash2, MessageCirc
 import Avatar from '../components/Avatar';
 import MedicalBadge from '../components/MedicalBadge';
 import PostCard from '../components/PostCard';
+import { CommunityCardSkeleton } from '../components/Skeletons';
 
 import { useConfirm } from '../context/ConfirmContext';
 
@@ -258,7 +259,13 @@ export default function CommunityDetail() {
     }
   };
 
-  if (loading) return <div className="text-center py-12">Loading...</div>;
+  if (loading) {
+    return (
+      <div className="max-w-5xl mx-auto animate-fade-in pb-32 pt-2 px-4 sm:px-0 space-y-6">
+         <CommunityCardSkeleton />
+      </div>
+    );
+  }
   if (!comm) return null;
 
   const pendingRequests = comm.members.filter(m => m.status === 'pending');

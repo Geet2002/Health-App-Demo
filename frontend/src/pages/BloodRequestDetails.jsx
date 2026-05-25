@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import GoogleMap from '../components/GoogleMap';
 import { formatDistanceToNow } from 'date-fns';
+import { SingleBloodRequestSkeleton } from '../components/Skeletons';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import Avatar from '../components/Avatar';
@@ -141,8 +143,8 @@ export default function BloodRequestDetails() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+      <div className="max-w-4xl mx-auto pb-32 px-4 sm:px-6 lg:px-8 pt-4 sm:pt-8 space-y-6">
+        <SingleBloodRequestSkeleton />
       </div>
     );
   }

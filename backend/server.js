@@ -1323,6 +1323,30 @@ app.post('/api/health-shares/:id/comments', authenticate, async (req, res) => {
   }
 });
 
+app.delete('/api/health-share-comments/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [comments] = await pool.query('SELECT author_id, share_id FROM health_share_comments WHERE id = ?', [id]);
+    if (comments.length === 0) return res.status(404).json({ error: 'Not found' });
+    
+    // Check if the current user is the author or admin
+    let isAuthorized = comments[0].author_id === req.user.id;
+    if (!isAuthorized) {
+      const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+      isAuthorized = users[0]?.is_admin === 1;
+    }
+    
+    if (!isAuthorized) return res.status(403).json({ error: 'Unauthorized' });
+
+    await pool.query('DELETE FROM health_share_comments WHERE id = ?', [id]);
+    io.emit('health_share_updated', comments[0].share_id);
+    res.json({ message: 'Comment deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.delete('/api/health-shares/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;

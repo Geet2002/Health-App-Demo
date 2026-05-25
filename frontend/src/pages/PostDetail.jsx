@@ -4,12 +4,14 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import MedicalBadge from '../components/MedicalBadge';
-import { AlertTriangle, HelpCircle, MapPin, Send, ArrowLeft, User, Clock, Trash2, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
+import { AlertTriangle, HelpCircle, MapPin, Send, ArrowLeft, User, Clock, Trash2, ThumbsUp, ThumbsDown, MessageSquare, Mic } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import { useAuth } from '../context/AuthContext';
+import useSpeechToText from '../hooks/useSpeechToText';
 import { socket } from '../socket';
 import GoogleMap from '../components/GoogleMap';
 import { useConfirm } from '../context/ConfirmContext';
+import { SinglePostSkeleton } from '../components/Skeletons';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -27,12 +29,12 @@ const CommentItem = ({ comment, allComments, user, onReply, onDelete, onVote, de
   };
 
   return (
-    <div className={`mt-4 ${depth > 0 ? 'ml-4 sm:ml-8 border-l-2 border-gray-100 pl-4' : ''}`}>
-      <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-100 transition-shadow hover:shadow-md">
-        <div className="flex items-start space-x-3">
+    <div className={`mt-3 sm:mt-4 ${depth > 0 ? 'ml-4 sm:ml-6 border-l-2 border-gray-100 pl-3 sm:pl-4' : ''}`}>
+      <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 transition-shadow hover:shadow-md">
+        <div className="flex items-start space-x-2.5 sm:space-x-3">
           <div className="hidden sm:block shrink-0">
             <Link to={`/user/${comment.author_id}`} className="hover:opacity-85 transition-opacity">
-              <Avatar src={comment.author_profile_picture} name={comment.author_name} size="w-8 h-8" />
+              <Avatar src={comment.author_profile_picture} name={comment.author_name} size="w-7 h-7" />
             </Link>
           </div>
           <div className="flex-1">
@@ -54,9 +56,9 @@ const CommentItem = ({ comment, allComments, user, onReply, onDelete, onVote, de
                 )}
               </div>
             </div>
-            <p className="text-gray-700 whitespace-pre-line text-sm mb-3">{comment.content}</p>
+            <p className="text-gray-700 whitespace-pre-line text-[13px] sm:text-sm mb-2">{comment.content}</p>
             
-            <div className="flex items-center space-x-4 text-xs font-medium text-gray-500">
+            <div className="flex items-center space-x-3 text-[11px] sm:text-xs font-medium text-gray-500">
               {user?.is_admin === 1 || user?.is_admin === true ? (
                 <>
                   <div className="flex items-center space-x-1 text-gray-400">
@@ -133,6 +135,21 @@ export default function PostDetail() {
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [speechLang, setSpeechLang] = useState('en-US');
+
+  const { isListening, isTranscribing, transcript, startListening, stopListening, error: speechError } = useSpeechToText(speechLang);
+
+  useEffect(() => {
+    if (transcript) {
+      setNewComment(prev => prev ? `${prev} ${transcript}` : transcript);
+    }
+  }, [transcript]);
+
+  useEffect(() => {
+    if (speechError) {
+      toast.error(speechError);
+    }
+  }, [speechError]);
 
   useEffect(() => {
     fetchPostDetails();
@@ -248,8 +265,8 @@ export default function PostDetail() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="max-w-3xl mx-auto pb-32 pt-2 px-4 sm:px-0 space-y-6">
+        <SinglePostSkeleton />
       </div>
     );
   }
@@ -259,22 +276,23 @@ export default function PostDetail() {
   const rootComments = comments.filter(c => !c.parent_id);
 
   return (
-    <div className="max-w-3xl mx-auto py-6 animate-fade-in relative">
-      <button 
-        onClick={() => navigate(-1)}
-        className="mb-6 flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4 mr-1" /> Back
-      </button>
+    <div className="max-w-3xl mx-auto animate-fade-in relative pb-32 px-4 sm:px-6 pt-4 sm:pt-6">
 
       {/* Main Post Card */}
       <div className={`
-        bg-white rounded-2xl shadow-sm border overflow-hidden mb-8
-        ${post.type === 'emergency' ? 'border-emergency-300 shadow-emergency-100' : 'border-gray-200'}
+        bg-white rounded-3xl shadow-sm border overflow-hidden mb-8
+        ${post.type === 'emergency' ? 'border-emergency-200 shadow-emergency-100/50' : 'border-gray-200'}
       `}>
-        <div className={`p-8 ${post.type === 'emergency' ? 'bg-emergency-50/30' : ''}`}>
+        <div className={`p-5 sm:p-6 lg:p-8 ${post.type === 'emergency' ? 'bg-emergency-50/10' : ''}`}>
           <div className="flex justify-between items-start mb-4">
-            <div className="flex items-center space-x-3 flex-wrap gap-y-2">
+            <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap gap-y-2">
+              <button 
+                onClick={() => navigate(-1)}
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors shrink-0 mr-1"
+                title="Go Back"
+              >
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
               {post.type === 'emergency' ? (
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-emergency-100 text-emergency-700 uppercase">
                   <AlertTriangle className="w-4 h-4 mr-1 animate-pulse" />
@@ -317,11 +335,11 @@ export default function PostDetail() {
             </div>
           </div>
 
-          <h1 className={`text-3xl font-extrabold mb-4 leading-tight ${post.type === 'emergency' ? 'text-emergency-700' : 'text-gray-900'}`}>
+          <h1 className={`text-2xl sm:text-3xl lg:text-4xl font-black mb-3 sm:mb-4 leading-tight tracking-tight ${post.type === 'emergency' ? 'text-emergency-700' : 'text-gray-900'}`}>
             {post.title}
           </h1>
           
-          <div className="prose max-w-none text-gray-700 text-lg leading-relaxed mb-6 whitespace-pre-line">
+          <div className="prose max-w-none text-gray-700 text-base sm:text-lg leading-relaxed mb-6 whitespace-pre-line">
             {post.content}
           </div>
 
@@ -344,12 +362,12 @@ export default function PostDetail() {
 
             return (
               <div className="mt-4 space-y-3">
-                <div className="inline-flex items-center p-3 bg-red-50 text-emergency-800 rounded-xl font-medium border border-emergency-200 w-full sm:w-auto">
-                  <MapPin className="w-5 h-5 mr-2 flex-shrink-0" />
-                  <span>Location: {locText}</span>
+                <div className={`inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold border w-full sm:w-auto ${post.type === 'emergency' ? 'bg-red-50/50 text-red-700 border-red-100' : 'bg-gray-50 text-gray-700 border-gray-100'}`}>
+                  <MapPin className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
+                  <span className="truncate">Location: {locText}</span>
                 </div>
                 {locPos && (
-                  <div className="h-72 w-full rounded-xl overflow-hidden border border-gray-200 relative z-0">
+                  <div className="h-64 sm:h-72 w-full rounded-2xl overflow-hidden border border-gray-200 relative z-0 shadow-inner">
                     <GoogleMap 
                       center={locPos} 
                       zoom={15} 
@@ -393,30 +411,67 @@ export default function PostDetail() {
 
         {/* Add Comment Form */}
         {(user?.is_admin !== 1 && user?.is_admin !== true) && (
-          <div className="mt-10 bg-gray-50 p-6 sm:p-8 rounded-2xl border border-gray-200 shadow-sm">
-            <h4 className="font-bold text-gray-900 mb-4 flex items-center">
-              <MessageSquare className="w-5 h-5 mr-2 text-primary-600" />
+          <div className="mt-6 sm:mt-8 bg-gray-50/50 p-4 sm:p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <h4 className="font-bold text-gray-900 mb-3 flex items-center text-sm sm:text-base">
+              <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2 text-primary-600" />
               {post.type === 'emergency' ? 'Add Hospital Suggestion / Help' : 'Your Advice / Suggestion'}
             </h4>
             <form onSubmit={handleCommentSubmit}>
               <textarea
                 required
-                rows={4}
+                rows={2}
                 placeholder={post.type === 'emergency' ? "Suggest the nearest hospital with emergency care..." : "Write your suggestion here..."}
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-all bg-white resize-none"
+                className="w-full px-3 py-2 sm:px-4 sm:py-3 text-[13px] sm:text-sm rounded-xl border border-gray-200 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-all bg-white resize-none"
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
               />
-              <div className="mt-4 flex justify-end">
+              <div className="mt-3 flex flex-row flex-wrap gap-2 justify-between items-center">
+                <div className="flex flex-row items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={isListening ? stopListening : startListening}
+                    disabled={isTranscribing}
+                    className={`flex items-center px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-bold shadow-sm transition-all ${
+                      isListening || isTranscribing 
+                        ? 'bg-red-50 text-red-600 animate-pulse border border-red-200' 
+                        : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                    }`}
+                    title={isListening ? "Stop listening" : "Start speaking"}
+                  >
+                    <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5" />
+                    <span>{isListening ? 'Listening...' : isTranscribing ? 'Transcribing...' : 'Speak'}</span>
+                  </button>
+                  
+                  <div className="relative">
+                    <select
+                      value={speechLang}
+                      onChange={(e) => setSpeechLang(e.target.value)}
+                      disabled={isListening || isTranscribing}
+                      className="appearance-none bg-white border border-gray-200 rounded-lg py-1.5 sm:py-2 pl-3 pr-7 text-xs sm:text-[13px] font-bold text-gray-700 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none cursor-pointer shadow-sm hover:border-gray-300 disabled:opacity-50 transition-colors"
+                    >
+                      <option value="en-US">English</option>
+                      <option value="hi-IN">Hindi</option>
+                      <option value="as-IN">Assamese</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                      <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
                 <button
                    type="submit"
-                   disabled={submitting || !newComment.trim()}
-                   className={`flex items-center px-6 py-2.5 rounded-lg text-sm font-bold shadow transition-all ${
-                     submitting || !newComment.trim() ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-500 text-white focus:ring-2 focus:ring-offset-2 focus:ring-primary-500'
+                   disabled={submitting || !newComment.trim() || isListening || isTranscribing}
+                   className={`flex items-center px-4 py-1.5 sm:px-5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold shadow-sm transition-all whitespace-nowrap ml-auto ${
+                     submitting || !newComment.trim() || isListening || isTranscribing
+                      ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed' 
+                      : 'bg-primary-600 hover:bg-primary-500 text-white focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 hover:shadow-md'
                    }`}
                 >
-                  {submitting ? 'Posting...' : 'Submit Suggestion'}
-                  {!submitting && <Send className="w-4 h-4 ml-2" />}
+                  <span>{submitting ? 'Posting...' : 'Post'}</span>
+                  {!submitting && <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-1.5" />}
                 </button>
               </div>
             </form>

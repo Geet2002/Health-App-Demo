@@ -64,15 +64,36 @@ export default function Sidebar() {
   return (
     <aside className="w-full sm:w-64 bg-white border-r border-gray-200 sm:h-screen sticky top-0 flex flex-col z-50">
       {/* Header/Logo */}
-      <div className="p-4 sm:p-6 flex items-center justify-between sm:justify-start">
+      <div className="p-4 sm:p-6 flex items-center justify-between sm:justify-start w-full gap-3">
         <Link to="/feed" className="flex items-center space-x-2 group">
-          <div className="bg-primary-100 p-2 rounded-lg group-hover:bg-primary-200 transition-colors">
-            <HeartPulse className="w-6 h-6 text-primary-600" />
+          <div className="bg-primary-100 p-1.5 sm:p-2 rounded-lg group-hover:bg-primary-200 transition-colors">
+            <HeartPulse className="w-5 h-5 sm:w-6 sm:h-6 text-primary-600" />
           </div>
           <span className="text-xl font-bold bg-clip-text text-primary-600 bg-gradient-to-r from-primary-600 to-teal-600">
             CareCommunity
           </span>
         </Link>
+        {user && (
+          <div className="sm:hidden flex items-center gap-5 ml-auto">
+            <Link to="/notifications" className="relative text-gray-600 hover:text-primary-600 transition-colors">
+              <Bell className="w-6 h-6" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full border-2 border-white">
+                  {unreadCount}
+                </span>
+              )}
+            </Link>
+            <Link to="/profile" className="shrink-0">
+               <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden ring-2 ring-primary-500 ring-offset-2 shadow-sm">
+                  {user.profile_picture ? (
+                    <img src={user.profile_picture.startsWith('http') ? user.profile_picture : `${API_URL.replace('/api', '')}${user.profile_picture}`} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-5 h-5 text-primary-600" />
+                  )}
+               </div>
+            </Link>
+          </div>
+        )}
       </div>
     
       {/* Navigation Links */}
@@ -101,16 +122,20 @@ export default function Sidebar() {
               </Link>
             )}
           
-            <Link to="/notifications" className={`${navLinkClass('/notifications')} relative`} title="Notifications">
+            <Link to="/notifications" className={`${navLinkClass('/notifications')} hidden sm:flex`} title="Notifications">
               <div className="relative">
-                <Bell className="w-6 h-6 sm:w-5 sm:h-5" />
+                <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 sm:top-0 sm:right-0 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full border-2 border-white">
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full border-2 border-white">
                     {unreadCount}
                   </span>
                 )}
               </div>
               <span className="hidden sm:inline">Notifications</span>
+            </Link>
+
+            <Link to="/profile" className={`${navLinkClass('/profile')} sm:hidden`} title="Profile">
+              <User className="w-6 h-6" />
             </Link>
 
             {user.is_admin ? (
@@ -142,7 +167,7 @@ export default function Sidebar() {
           
             <div className="flex items-center justify-between pt-4 border-t border-gray-100">
               <Link to="/profile" className="flex items-center space-x-2 overflow-hidden group flex-1 hover:bg-gray-50 p-1.5 rounded-xl transition-colors">
-                <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0 overflow-hidden border border-gray-200">
+                <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0 overflow-hidden ring-2 ring-primary-500 ring-offset-2 shadow-sm group-hover:ring-primary-600 transition-all">
                   {user.profile_picture ? (
                     <img src={user.profile_picture.startsWith('http') ? user.profile_picture : `${API_URL.replace('/api', '')}${user.profile_picture}`} alt="Profile" className="w-full h-full object-cover" />
                   ) : (

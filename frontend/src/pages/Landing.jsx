@@ -20,10 +20,10 @@ export default function Landing() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="bg-green-100 p-2 rounded-xl">
-              <HeartPulse className="w-6 h-6 text-green-600" />
+            <div className="bg-green-100 p-1.5 sm:p-2 rounded-xl">
+              <HeartPulse className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
             </div>
-            <span className="text-xl font-bold text-gray-900">CareCommunity</span>
+            <span className="text-lg sm:text-xl font-bold text-gray-900">CareCommunity</span>
           </div>
           <div className="hidden md:flex items-center space-x-8">
             <a 
@@ -42,11 +42,11 @@ export default function Landing() {
               className="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors"
             >Community</a>
           </div>
-          <div className="flex items-center space-x-3">
-            <Link to="/login" viewTransition className="text-gray-600 hover:text-gray-900 text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <Link to="/login" viewTransition className="hidden sm:inline-block text-gray-600 hover:text-gray-900 text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors">
               Sign In
             </Link>
-            <Link to="/signup" viewTransition className="bg-green-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-green-700 transition-all shadow-sm hover:shadow-md">
+            <Link to="/signup" viewTransition className="bg-green-600 text-white text-xs sm:text-sm font-bold px-3 py-2 sm:px-5 sm:py-2.5 rounded-lg sm:rounded-xl hover:bg-green-700 transition-all shadow-sm hover:shadow-md whitespace-nowrap">
               Get Started
             </Link>
           </div>
@@ -61,12 +61,12 @@ export default function Landing() {
         <div className="absolute top-48 left-0 w-48 h-48 bg-teal-100 rounded-full blur-3xl opacity-40 -z-10" />
 
         <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center space-x-2 bg-green-50 border border-green-100 rounded-full px-4 py-2 mb-8">
-            <Star className="w-4 h-4 text-green-500" fill="currentColor" />
-            <span className="text-sm font-semibold text-green-700">Your Health, Our Community</span>
+          <div className="inline-flex items-center space-x-2 bg-green-50 border border-green-100 rounded-full px-3 py-1.5 sm:px-4 sm:py-2 mb-6 sm:mb-8">
+            <Star className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" fill="currentColor" />
+            <span className="text-xs sm:text-sm font-semibold text-green-700">Your Health, Our Community</span>
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-black text-gray-900 leading-tight mb-6">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-black text-gray-900 leading-tight mb-6">
             Healthcare{' '}
             <span className="relative">
               <span className="text-green-600">Together</span>
@@ -83,11 +83,11 @@ export default function Landing() {
             blood donation coordination, and shared health experiences.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center w-full">
             <Link
               to="/signup"
               viewTransition
-              className="group flex items-center space-x-2 bg-green-600 text-white font-bold px-8 py-4 rounded-2xl hover:bg-green-700 transition-all shadow-lg hover:shadow-green-200 hover:shadow-xl"
+              className="group flex items-center justify-center w-full sm:w-auto space-x-2 bg-green-600 text-white font-bold px-8 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl hover:bg-green-700 transition-all shadow-lg hover:shadow-green-200 hover:shadow-xl"
             >
               <Heart className="w-5 h-5" fill="currentColor" />
               <span>Join the Community</span>
@@ -96,7 +96,7 @@ export default function Landing() {
             <Link
               to="/login"
               viewTransition
-              className="flex items-center space-x-2 bg-white text-gray-700 font-bold px-8 py-4 rounded-2xl hover:bg-gray-50 transition-all border border-gray-200 shadow-sm"
+              className="flex items-center justify-center w-full sm:w-auto space-x-2 bg-white text-gray-700 font-bold px-8 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl hover:bg-gray-50 transition-all border border-gray-200 shadow-sm"
             >
               <span>Sign In</span>
             </Link>
@@ -204,7 +204,7 @@ export default function Landing() {
                 human-first approach to health information and emergency response. From blood 
                 donation coordination to peer health advice, every feature is built with care.
               </p>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-4 sm:gap-6">
                 {[
                   { label: 'Community Members', value: 'Growing' },
                   { label: 'Blood Requests Fulfilled', value: 'Lifesaving' },
@@ -248,7 +248,7 @@ export default function Landing() {
         </div>
         <div className="max-w-3xl mx-auto text-center relative z-10">
           <Globe className="w-12 h-12 text-green-200 mx-auto mb-6" />
-          <h2 className="text-4xl md:text-5xl font-black text-white mb-6">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white mb-6">
             Ready to make a difference?
           </h2>
           <p className="text-green-100 text-lg leading-relaxed mb-10 max-w-xl mx-auto">

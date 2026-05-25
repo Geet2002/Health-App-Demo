@@ -19,7 +19,7 @@ export const loadGoogleMaps = (apiKey) => {
     };
     
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=${callbackName}&libraries=places`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=${callbackName}&libraries=places,marker&loading=async`;
     script.async = true;
     script.defer = true;
     script.onerror = () => {
@@ -86,6 +86,7 @@ export default function GoogleMap({
           const mapInstance = new google.maps.Map(containerRef.current, {
             center: mapCenter,
             zoom: zoom,
+            mapId: 'DEMO_MAP_ID',
             scrollwheel: scrollWheelZoom,
             mapTypeControl: false,
             streetViewControl: false,
@@ -108,10 +109,13 @@ export default function GoogleMap({
           // Place initial marker if provided
           if (markerPosition) {
             const mPos = toLatLng(markerPosition);
-            markerRef.current = new google.maps.Marker({
+            const pin = new google.maps.marker.PinElement();
+            pin.element.style.animation = 'marker-drop 0.4s ease-out forwards';
+            
+            markerRef.current = new google.maps.marker.AdvancedMarkerElement({
               position: mPos,
               map: mapInstance,
-              animation: google.maps.Animation.DROP,
+              content: pin.element,
               title: "Selected Location"
             });
           }
@@ -129,11 +133,12 @@ export default function GoogleMap({
     return () => { cancelled = true; };
   }, [apiKey]);
 
-  // Recenter map when center prop changes
+  // Recenter map and update zoom when center or zoom props change
   useEffect(() => {
     if (!mapRef.current || !center) return;
     mapRef.current.panTo(toLatLng(center));
-  }, [center]);
+    mapRef.current.setZoom(zoom);
+  }, [center, zoom]);
 
   // Update marker when markerPosition prop changes
   useEffect(() => {
@@ -141,16 +146,19 @@ export default function GoogleMap({
 
     // Remove old marker
     if (markerRef.current) {
-      markerRef.current.setMap(null);
+      markerRef.current.map = null;
       markerRef.current = null;
     }
 
     // Add new marker
     if (markerPosition) {
-      markerRef.current = new window.google.maps.Marker({
+      const pin = new window.google.maps.marker.PinElement();
+      pin.element.style.animation = 'marker-drop 0.4s ease-out forwards';
+      
+      markerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
         position: toLatLng(markerPosition),
         map: mapRef.current,
-        animation: window.google.maps.Animation.DROP,
+        content: pin.element,
         title: "Selected Location"
       });
     }

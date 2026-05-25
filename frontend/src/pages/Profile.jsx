@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Camera, User as UserIcon, Calendar, Info, Users, ShieldCheck, BadgeCheck, ShieldMinus, Clock } from 'lucide-react';
+import { Camera, User as UserIcon, Calendar, Info, Users, ShieldCheck, BadgeCheck, ShieldMinus, Clock, LogOut, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
 import toast from 'react-hot-toast';
 import { Link, useNavigate } from 'react-router-dom';
+import { ProfileSkeleton } from '../components/Skeletons';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user, checkUser } = useAuth();
+  const { user, checkUser, logout } = useAuth();
   const confirm = useConfirm();
   const [profile, setProfile] = useState({
     birthdate: '',
@@ -123,233 +124,233 @@ export default function Profile() {
     }
   };
 
-  if (loading) return <div className="text-center py-12">Loading...</div>;
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      toast.error('Logout failed');
+    }
+  };
+
+  if (loading) return <ProfileSkeleton />;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 animate-fade-in pb-12">
-      <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-          {user?.is_admin ? 'Admin Profile' : 'Your Profile'}
-        </h1>
-        <p className="text-gray-500 mt-2 text-lg">
-          {user?.is_admin ? 'Manage your administrator account.' : 'Manage your personal information and identity.'}
-        </p>
+    <div className="max-w-md mx-auto space-y-4 sm:space-y-6 animate-fade-in pb-32 px-4 pt-0 sm:pt-6 min-h-screen">
+      <div className="flex justify-start items-center mb-4 sm:mb-8 mt-0 sm:mt-2 ml-1">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Profile</h1>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        <form onSubmit={handleSubmit} className="p-8">
-          
-          {message && (
-            <div className={`p-4 rounded-xl mb-6 text-sm font-medium ${message.includes('success') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-              {message}
-            </div>
-          )}
-
-          {/* Profile Picture */}
-          <div className="flex flex-col items-center mb-8">
-            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current.click()}>
-              <div className="w-32 h-32 rounded-full border-4 border-white shadow-lg overflow-hidden bg-primary-100 flex items-center justify-center relative">
-                {imagePreview ? (
-                  <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-5xl font-bold text-primary-500">{user?.username?.[0]?.toUpperCase()}</span>
-                )}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Camera className="w-8 h-8 text-white" />
-                </div>
-              </div>
-              <div className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-700 text-center">
-                Change Picture
-              </div>
-            </div>
-            
-            {profile.medical_verification_status === 'approved' && (
-              <div className="mt-4 flex items-center px-3 py-1 bg-blue-50 border border-blue-100 rounded-full">
-                <BadgeCheck className="w-4 h-4 text-blue-500 mr-1.5" />
-                <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Verified Professional</span>
-              </div>
-            )}
-            
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              accept="image/*" 
-              onChange={handleImageChange} 
-            />
+      <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+        
+        {message && (
+          <div className={`p-4 rounded-xl text-sm font-medium ${message.includes('success') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            {message}
           </div>
+        )}
 
-          {/* Medical Badge Verification (Regular Users Only) */}
-          {!user?.is_admin && (
-            <div className="bg-blue-50 rounded-2xl p-6 mb-8 border border-blue-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center">
-                <div className="bg-blue-100 p-3 rounded-xl mr-4">
-                  <ShieldCheck className="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 text-lg">Medical Professional</h3>
-                  <p className="text-gray-600 text-sm">Verify your identity to get a badge next to your name.</p>
-                  {profile.medical_verification_status === 'rejected' && (
-                    <p className="text-red-600 text-xs font-bold mt-1">Your previous request was rejected.</p>
-                  )}
-                </div>
-              </div>
-              
-              {profile.medical_verification_status === 'approved' ? (
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <button 
-                    type="button"
-                    onClick={async (e) => {
-                      e.preventDefault();
-                      const isConfirmed = await confirm({
-                        title: 'Remove Verification?',
-                        message: 'Are you sure you want to remove your medical verification status?',
-                        confirmText: 'Remove',
-                        cancelText: 'Keep Status',
-                        type: 'danger'
-                      });
-                      
-                      if (isConfirmed) {
-                        try {
-                          await axios.post(`${API_URL}/users/me/verify-medical`, { is_medical_professional: false });
-                          setProfile(p => ({ ...p, is_medical_professional: false, medical_verification_status: 'none' }));
-                          toast.success('Verification removed');
-                        } catch (err) {
-                          toast.error('Failed to remove verification');
-                        }
-                      }
-                    }}
-                    className="px-4 py-2 bg-white text-gray-500 font-semibold rounded-full border border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 shadow-sm transition-all text-sm flex items-center"
-                  >
-                    <ShieldMinus className="w-4 h-4 mr-1.5" />
-                    Remove Verification
-                  </button>
-                </div>
-              ) : profile.medical_verification_status === 'pending' ? (
-                showCancelPrompt ? (
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={handleCancelRequest}
-                      className="px-3 py-1.5 text-sm rounded-full font-semibold transition-colors bg-red-500 text-white hover:bg-red-600 whitespace-nowrap"
-                    >
-                      Cancel Verification
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowCancelPrompt(false)}
-                      className="px-3 py-1.5 text-sm rounded-full font-semibold transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300"
-                    >
-                      Back
-                    </button>
+        {/* Top Profile Card */}
+        <div 
+          className="bg-white rounded-3xl p-5 flex items-center shadow-sm border border-gray-100 relative cursor-pointer group hover:shadow-md transition-all"
+          onClick={() => fileInputRef.current.click()}
+        >
+          <div className="relative shrink-0">
+             <div className="w-16 h-16 rounded-full overflow-hidden bg-primary-50 ring-2 ring-gray-100 group-hover:ring-primary-500 transition-all flex items-center justify-center">
+               {imagePreview ? (
+                 <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" />
+               ) : (
+                 <span className="text-2xl font-bold text-primary-500">{user?.username?.[0]?.toUpperCase()}</span>
+               )}
+             </div>
+             <div className="absolute bottom-0 right-0 bg-primary-600 p-1 rounded-full text-white shadow-sm border-2 border-white">
+               <Camera className="w-3 h-3" />
+             </div>
+          </div>
+          <div className="ml-4 overflow-hidden">
+            <h2 className="text-lg font-bold text-gray-900 truncate">{user?.username}</h2>
+            <p className="text-sm text-gray-500 truncate">{user?.email}</p>
+          </div>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            accept="image/*" 
+            onChange={handleImageChange} 
+          />
+        </div>
+
+        {/* Verification Section */}
+        {!user?.is_admin && (
+           <div>
+             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">Verification</h3>
+             <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+               <div className="flex items-center">
+                  <div className="bg-blue-50 p-2 rounded-xl mr-3 shrink-0">
+                    <ShieldCheck className="w-5 h-5 text-blue-600" />
                   </div>
-                ) : (
-                  <button 
-                    type="button"
-                    onClick={() => setShowCancelPrompt(true)}
-                    className="px-3 py-1.5 rounded-full font-bold bg-yellow-100 text-yellow-700 border border-yellow-200 flex items-center text-sm hover:bg-yellow-200 transition-colors cursor-pointer"
-                  >
-                    <Clock className="w-4 h-4 mr-1.5" />
-                    Pending
-                  </button>
-                )
-              ) : (
-              <button
-                type="button"
-                onClick={handleToggleMedical}
-                className="px-4 py-1.5 text-sm rounded-full font-semibold transition-colors bg-blue-500 text-white hover:bg-blue-600 whitespace-nowrap"
-              >
-                Request Verification
-              </button>
-              )}
-            </div>
-          )}
+                  <div>
+                    <span className="font-bold text-gray-900 block text-sm">Medical Professional</span>
+                    {profile.medical_verification_status === 'approved' && (
+                      <span className="text-xs font-bold text-blue-600">Verified</span>
+                    )}
+                    {profile.medical_verification_status === 'rejected' && (
+                      <span className="text-xs font-bold text-red-600">Rejected</span>
+                    )}
+                  </div>
+               </div>
+               
+               <div>
+                  {profile.medical_verification_status === 'approved' ? (
+                    <button 
+                      type="button"
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        const isConfirmed = await confirm({
+                          title: 'Remove Verification?',
+                          message: 'Are you sure you want to remove your medical verification status?',
+                          confirmText: 'Remove',
+                          cancelText: 'Keep Status',
+                          type: 'danger'
+                        });
+                        if (isConfirmed) {
+                          try {
+                            await axios.post(`${API_URL}/users/me/verify-medical`, { is_medical_professional: false });
+                            setProfile(p => ({ ...p, is_medical_professional: false, medical_verification_status: 'none' }));
+                            toast.success('Verification removed');
+                          } catch (err) {
+                            toast.error('Failed to remove verification');
+                          }
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors text-xs flex items-center w-full sm:w-auto justify-center"
+                    >
+                      <ShieldMinus className="w-3.5 h-3.5 mr-1" /> Remove
+                    </button>
+                  ) : profile.medical_verification_status === 'pending' ? (
+                     showCancelPrompt ? (
+                       <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                         <button type="button" onClick={handleCancelRequest} className="px-4 py-2 text-xs rounded-xl font-bold bg-red-500 text-white flex-1 sm:flex-none whitespace-nowrap shadow-sm hover:bg-red-600 transition-colors">Yes, Cancel</button>
+                         <button type="button" onClick={() => setShowCancelPrompt(false)} className="px-4 py-2 text-xs rounded-xl font-bold bg-gray-100 hover:bg-gray-200 transition-colors text-gray-700 sm:flex-none shadow-sm">Back</button>
+                       </div>
+                     ) : (
+                       <button type="button" onClick={() => setShowCancelPrompt(true)} className="px-3 py-1.5 rounded-xl font-bold bg-yellow-50 text-yellow-700 flex items-center text-xs w-full sm:w-auto justify-center">
+                         <Clock className="w-3.5 h-3.5 mr-1" /> Pending
+                       </button>
+                     )
+                  ) : (
+                    <button type="button" onClick={handleToggleMedical} className="px-4 py-2 text-xs rounded-xl font-bold bg-gray-900 text-white w-full sm:w-auto">
+                      Request
+                    </button>
+                  )}
+               </div>
+             </div>
+           </div>
+        )}
 
-          {/* Regular User Details */}
-          {!user?.is_admin && (
-            <div className="space-y-6">
-              {/* Bio */}
-              <div>
-                <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
-                  <Info className="w-4 h-4 mr-2 text-primary-500" />
-                  Bio / Description
-                </label>
-                <textarea 
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                  rows="4"
-                  placeholder="Tell the community about yourself..."
-                  value={profile.description}
-                  onChange={e => setProfile({...profile, description: e.target.value})}
-                ></textarea>
-              </div>
+        {/* Personal Details Section */}
+        {!user?.is_admin && (
+           <div>
+             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">Personal Details</h3>
+             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+               
+               {/* Bio */}
+               <div className="p-4">
+                  <div className="flex items-center mb-3">
+                     <div className="bg-gray-50 p-2 rounded-xl mr-3">
+                       <Info className="w-5 h-5 text-gray-600" />
+                     </div>
+                     <span className="font-bold text-gray-900 text-sm">Bio</span>
+                  </div>
+                  <textarea 
+                    className="w-full bg-gray-50 rounded-2xl p-4 text-sm font-medium text-gray-700 border border-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none resize-none transition-all"
+                    rows="3"
+                    placeholder="Tell the community about yourself..."
+                    value={profile.description}
+                    onChange={e => setProfile({...profile, description: e.target.value})}
+                  />
+               </div>
 
-              <div className="grid sm:grid-cols-2 gap-6">
-                {/* Birthdate */}
-                <div>
-                  <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
-                    <Calendar className="w-4 h-4 mr-2 text-primary-500" />
-                    Birthdate
-                  </label>
+               {/* Birthdate */}
+               <div className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center">
+                     <div className="bg-gray-50 p-2 rounded-xl mr-3">
+                       <Calendar className="w-5 h-5 text-gray-600" />
+                     </div>
+                     <span className="font-bold text-gray-900 text-sm">Birthdate</span>
+                  </div>
                   <input 
                     type="date" 
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                    className="text-sm text-gray-500 font-bold bg-transparent border-none focus:ring-0 cursor-pointer outline-none text-right"
                     value={profile.birthdate}
                     onChange={e => setProfile({...profile, birthdate: e.target.value})}
                   />
-                </div>
+               </div>
 
-                {/* Gender */}
-                <div>
-                  <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
-                    <Users className="w-4 h-4 mr-2 text-primary-500" />
-                    Gender
-                  </label>
-                  <select 
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all bg-white"
-                    value={profile.gender}
-                    onChange={e => setProfile({...profile, gender: e.target.value})}
-                  >
-                    <option value="">Select gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                    <option value="prefer_not_to_say">Prefer not to say</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
+               {/* Gender */}
+               <div className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center">
+                     <div className="bg-gray-50 p-2 rounded-xl mr-3">
+                       <Users className="w-5 h-5 text-gray-600" />
+                     </div>
+                     <span className="font-bold text-gray-900 text-sm">Gender</span>
+                  </div>
+                  <div className="relative flex items-center">
+                    <select 
+                      className="text-sm text-gray-500 font-bold bg-transparent border-none focus:ring-0 cursor-pointer outline-none appearance-none pr-6 text-right"
+                      value={profile.gender}
+                      onChange={e => setProfile({...profile, gender: e.target.value})}
+                    >
+                      <option value="">Select</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                      <option value="prefer_not_to_say">Prefer not to say</option>
+                    </select>
+                    <ChevronRight className="w-4 h-4 text-gray-400 absolute right-0 pointer-events-none" />
+                  </div>
+               </div>
+             </div>
+           </div>
+        )}
 
-          {/* Admin Specific Dashboard Link */}
-          {user?.is_admin && (
-            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6 sm:p-8 mb-8 border border-indigo-100 flex flex-col items-center text-center">
-              <div className="bg-white p-4 rounded-full shadow-sm mb-4">
-                <ShieldCheck className="w-8 h-8 text-indigo-600" />
-              </div>
-              <h3 className="font-black text-gray-900 text-xl sm:text-2xl mb-2">Administrator Account</h3>
-              <p className="text-gray-600 max-w-md mb-6">
-                You have elevated privileges. Use the Admin Panel to manage users, communities, posts, and medical verifications.
-              </p>
-              <Link 
-                to="/admin" 
-                className="inline-flex items-center justify-center px-6 py-3 bg-indigo-600 text-white font-bold rounded-full hover:bg-indigo-700 transition-colors shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-              >
-                Go to Admin Panel
-              </Link>
-            </div>
-          )}
+        {/* Account / Admin Section */}
+        {Boolean(user?.is_admin) && (
+           <div>
+             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2">Account</h3>
+             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+                <Link to="/admin" className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                   <div className="flex items-center">
+                      <div className="bg-indigo-50 p-2 rounded-xl mr-3">
+                        <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <span className="font-bold text-gray-900 text-sm">Admin Panel</span>
+                   </div>
+                   <ChevronRight className="w-4 h-4 text-gray-400" />
+                </Link>
+             </div>
+           </div>
+        )}
 
-          <div className="mt-10 flex justify-end">
-            <button 
-              type="submit" 
-              disabled={saving || (initialProfile && JSON.stringify(profile) === JSON.stringify(initialProfile) && !imageFile)}
-              className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
-      </div>
+        {/* Actions */}
+        <div className="pt-2 space-y-3 pb-8">
+          <button 
+            type="submit" 
+            disabled={saving || (initialProfile && JSON.stringify(profile) === JSON.stringify(initialProfile) && !imageFile)}
+            className="w-full bg-gray-900 hover:bg-black text-white font-bold py-3.5 rounded-2xl shadow-sm transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+          
+          <button 
+            type="button" 
+            onClick={handleLogout} 
+            className="w-full bg-white hover:bg-gray-50 text-red-600 font-bold py-3.5 rounded-2xl shadow-sm border border-gray-200 transition-colors flex justify-center items-center"
+          >
+             <LogOut className="w-4 h-4 mr-2" /> Log Out
+          </button>
+        </div>
+
+      </form>
     </div>
   );
 }

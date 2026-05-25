@@ -140,10 +140,10 @@ export default function Auth() {
 
         <div className="max-w-md w-full mx-auto">
           {/* Tab Switcher */}
-          <div className="bg-gray-100 p-1 rounded-2xl flex mb-8">
+          <div className="bg-gray-100 p-1 rounded-2xl flex mb-6 sm:mb-8">
             <button
               onClick={() => switchTo(true)}
-              className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${isLogin
+              className={`flex-1 py-2.5 sm:py-3 rounded-xl text-sm font-bold transition-all ${isLogin
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
                 }`}
@@ -152,7 +152,7 @@ export default function Auth() {
             </button>
             <button
               onClick={() => switchTo(false)}
-              className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${!isLogin
+              className={`flex-1 py-2.5 sm:py-3 rounded-xl text-sm font-bold transition-all ${!isLogin
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
                 }`}
@@ -162,8 +162,8 @@ export default function Auth() {
           </div>
 
           {/* Heading */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-black text-gray-900 mb-2">
+          <div className="mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2 tracking-tight">
               {isLogin ? 'Sign in to your account' : 'Create your free account'}
             </h1>
             <p className="text-gray-500 text-sm">
