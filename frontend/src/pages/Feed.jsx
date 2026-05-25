@@ -1,5 +1,5 @@
 import toast from 'react-hot-toast';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { 
@@ -13,6 +13,7 @@ import { useConfirm } from '../context/ConfirmContext';
 import { socket } from '../socket';
 import PostCard from '../components/PostCard';
 import PageHeader from '../components/PageHeader';
+import { PostSkeleton } from '../components/Skeletons';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -50,6 +51,12 @@ export default function Feed() {
   const [filter, setFilter] = useState('all'); // 'all', 'global', 'communities'
   const [categoryFilter, setCategoryFilter] = useState('all'); // 'all', 'emergency', 'query'
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Infinite scroll state
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const observer = useRef();
   const { user } = useAuth();
   const [userStats, setUserStats] = useState({ posts_count: 0, upvotes_count: 0 });
 
@@ -75,37 +82,52 @@ export default function Feed() {
     return () => clearInterval(interval);
   }, [user]);
 
+  // Reset feed when filters change
   useEffect(() => {
-    fetchPosts();
-  }, [filter, searchQuery]);
+    setPage(0);
+    setHasMore(true);
+    setPosts([]);
+    fetchPosts(0, false);
+  }, [filter, searchQuery, categoryFilter]);
 
-  useEffect(() => {
-    const handlePostUpdated = async (postId) => {
-      try {
-        const res = await axios.get(`${API_URL}/posts/${postId}`);
-        setPosts(currentPosts => currentPosts.map(p => p.id === parseInt(postId) ? res.data : p));
-      } catch (err) {
-        console.error('Error fetching updated post', err);
-      }
-    };
-    
-    socket.on('post_updated', handlePostUpdated);
-    return () => {
-      socket.off('post_updated', handlePostUpdated);
-    };
-  }, []);
+  const fetchPosts = async (pageNum = 0, isLoadMore = false) => {
+    if (!isLoadMore) setLoading(true);
+    else setLoadingMore(true);
 
-  const fetchPosts = async () => {
-    setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/posts?filter=${filter}`);
-      setPosts(response.data);
+      const limit = 10;
+      const offset = pageNum * limit;
+      const response = await axios.get(`${API_URL}/posts?filter=${filter}&category=${categoryFilter}&search=${searchQuery}&limit=${limit}&offset=${offset}`);
+      
+      if (isLoadMore) {
+        setPosts(prev => {
+          // Prevent duplicates on strict mode dev environments
+          const newPosts = response.data.posts.filter(np => !prev.some(p => p.id === np.id));
+          return [...prev, ...newPosts];
+        });
+      } else {
+        setPosts(response.data.posts);
+      }
+      setHasMore(response.data.hasMore);
+      setPage(pageNum);
     } catch (error) {
       console.error('Error fetching posts:', error);
     } finally {
-      setLoading(false);
+      if (!isLoadMore) setLoading(false);
+      else setLoadingMore(false);
     }
   };
+
+  const lastPostElementRef = useCallback(node => {
+    if (loading || loadingMore) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        fetchPosts(page + 1, true);
+      }
+    });
+    if (node) observer.current.observe(node);
+  }, [loading, loadingMore, hasMore, page, filter, searchQuery, categoryFilter]);
 
   const handleDeletePost = async (e, id) => {
     e.preventDefault();
@@ -128,20 +150,6 @@ export default function Feed() {
       toast.error('Error deleting post');
     }
   };
-
-  // Client-side real-time filter combining search query and subcategory selection
-  const filteredPosts = posts.filter(post => {
-    const matchesSearch = 
-      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (post.author_name && post.author_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (post.community_name && post.community_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (post.location && post.location.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    const matchesCategory = categoryFilter === 'all' || post.type === categoryFilter;
-
-    return matchesSearch && matchesCategory;
-  });
 
   const myPostsCount = userStats.posts_count;
   const myUpvotesCount = userStats.upvotes_count;
@@ -277,19 +285,47 @@ export default function Feed() {
           )}
 
           {/* Main Feed Content or Skeletons */}
-          {loading ? (
+          {loading && posts.length === 0 ? (
             <FeedSkeleton />
-          ) : filteredPosts.length === 0 ? (
-            <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-gray-300 shadow-sm p-6">
-              <HelpCircle className="mx-auto h-12 w-12 text-primary-200" />
-              <h3 className="mt-4 text-lg font-bold text-gray-900">No posts found</h3>
-              <p className="mt-1 text-sm text-gray-500">Try adjusting your filters or searching for something else.</p>
+          ) : posts.length === 0 ? (
+            <div className="bg-white p-12 rounded-3xl border border-gray-150 shadow-sm text-center">
+              <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-100">
+                <Search className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-1">No posts found</h3>
+              <p className="text-gray-500 text-sm">Be the first to create a post in this category!</p>
             </div>
           ) : (
-            <div className="grid gap-5">
-              {filteredPosts.map((post) => (
-                <PostCard key={post.id} post={post} currentUser={user} onDelete={handleDeletePost} onVote={fetchUserStats} />
-              ))}
+            <div className="space-y-4">
+              {posts.map((post, index) => {
+                if (posts.length === index + 1) {
+                  return (
+                    <div ref={lastPostElementRef} key={post.id}>
+                      <PostCard 
+                        post={post} 
+                        currentUser={user} 
+                        onDelete={handleDeletePost} 
+                        onVote={fetchUserStats}
+                      />
+                    </div>
+                  );
+                } else {
+                  return (
+                    <PostCard 
+                      key={post.id} 
+                      post={post} 
+                      currentUser={user} 
+                      onDelete={handleDeletePost}
+                      onVote={fetchUserStats}
+                    />
+                  );
+                }
+              })}
+              {loadingMore && (
+                <div className="pt-4 pb-8 flex justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                </div>
+              )}
             </div>
           )}
         </div>

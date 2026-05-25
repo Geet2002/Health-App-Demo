@@ -257,19 +257,36 @@ app.get('/api/posts', authenticate, async (req, res) => {
     const userId = req.user.id;
     const { filter } = req.query; // 'global', 'communities', or 'all'
 
-    let whereClause = '';
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = parseInt(req.query.offset) || 0;
+    const search = req.query.search || '';
+    const category = req.query.category || 'all';
+
+    let whereConditions = [];
     let queryParams = [];
 
     if (filter === 'global') {
-      whereClause = `WHERE p.community_id IS NULL`;
-      queryParams = [userId];
+      whereConditions.push(`p.community_id IS NULL`);
     } else if (filter === 'communities') {
-      whereClause = `WHERE p.community_id IN (SELECT community_id FROM community_members WHERE user_id = ? AND status = 'approved')`;
-      queryParams = [userId, userId];
+      whereConditions.push(`p.community_id IN (SELECT community_id FROM community_members WHERE user_id = ? AND status = 'approved')`);
+      queryParams.push(userId);
     } else {
-      whereClause = `WHERE p.community_id IS NULL OR p.community_id IN (SELECT community_id FROM community_members WHERE user_id = ? AND status = 'approved')`;
-      queryParams = [userId, userId];
+      whereConditions.push(`(p.community_id IS NULL OR p.community_id IN (SELECT community_id FROM community_members WHERE user_id = ? AND status = 'approved'))`);
+      queryParams.push(userId);
     }
+
+    if (category !== 'all') {
+      whereConditions.push(`p.type = ?`);
+      queryParams.push(category);
+    }
+
+    if (search) {
+      whereConditions.push(`(p.title LIKE ? OR p.content LIKE ? OR p.location LIKE ?)`);
+      const searchParam = `%${search}%`;
+      queryParams.push(searchParam, searchParam, searchParam);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     const [rows] = await pool.query(`
       SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional, c.name as community_name,
@@ -283,9 +300,13 @@ app.get('/api/posts', authenticate, async (req, res) => {
       ORDER BY 
         p.type = 'emergency' DESC, 
         p.created_at DESC
-    `, queryParams);
+      LIMIT ? OFFSET ?
+    `, [...queryParams, userId, limit + 1, offset]);
 
-    res.json(rows);
+    const hasMore = rows.length > limit;
+    const posts = hasMore ? rows.slice(0, limit) : rows;
+
+    res.json({ posts, hasMore });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
