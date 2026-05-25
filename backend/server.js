@@ -5,9 +5,19 @@ const jwt = require('jsonwebtoken');
 const mysql = require('mysql2/promise');
 const multer = require('multer');
 const path = require('path');
+const http = require('http');
+const { Server } = require('socket.io');
 require('dotenv').config();
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
+  }
+});
+
 app.use(cors({ origin: 'http://localhost:5173' })); // credentials not needed for bearer tokens
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -51,6 +61,19 @@ const authenticate = (req, res, next) => {
   }
 };
 
+// Admin Middleware
+const isAdmin = async (req, res, next) => {
+  try {
+    const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+    if (users.length === 0 || !users[0].is_admin) {
+      return res.status(403).json({ error: 'Forbidden: Admin access required' });
+    }
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Server error checking admin status' });
+  }
+};
+
 // ======================= AUTH ROUTES =======================
 
 app.post('/api/auth/signup', async (req, res) => {
@@ -67,7 +90,7 @@ app.post('/api/auth/signup', async (req, res) => {
     );
 
     const token = jwt.sign({ id: result.insertId, username }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ message: 'Signup successful', token, user: { id: result.insertId, username, profile_picture: null } });
+    res.json({ message: 'Signup successful', token, user: { id: result.insertId, username, profile_picture: null, is_admin: 0 } });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Username already exists' });
     console.error(err);
@@ -86,7 +109,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ message: 'Login successful', token, user: { id: user.id, username: user.username, profile_picture: user.profile_picture } });
+    res.json({ message: 'Login successful', token, user: { id: user.id, username: user.username, profile_picture: user.profile_picture, is_admin: user.is_admin } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -99,7 +122,7 @@ app.post('/api/auth/logout', (req, res) => {
 
 app.get('/api/auth/me', authenticate, async (req, res) => {
   try {
-    const [users] = await pool.query('SELECT id, username, profile_picture FROM users WHERE id = ?', [req.user.id]);
+    const [users] = await pool.query('SELECT id, username, profile_picture, is_admin, medical_verification_status FROM users WHERE id = ?', [req.user.id]);
     if (users.length === 0) return res.status(401).json({ error: 'User not found' });
     res.json({ user: users[0] });
   } catch(e) {
@@ -112,7 +135,7 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
 app.get('/api/users/profile', authenticate, async (req, res) => {
   try {
     const [users] = await pool.query(
-      `SELECT id, username, created_at, birthdate, description, gender, profile_picture, is_medical_professional FROM users WHERE id = ?`, 
+      `SELECT id, username, created_at, birthdate, description, gender, profile_picture, is_medical_professional, medical_verification_status FROM users WHERE id = ?`, 
       [req.user.id]
     );
     if (users.length === 0) return res.status(404).json({ error: 'User not found' });
@@ -155,10 +178,17 @@ app.put('/api/users/profile', authenticate, upload.single('profile_picture'), as
 app.post('/api/users/me/verify-medical', authenticate, async (req, res) => {
   try {
     const { is_medical_professional } = req.body;
-    await pool.query(
-      `UPDATE users SET is_medical_professional = ? WHERE id = ?`,
-      [is_medical_professional ? 1 : 0, req.user.id]
-    );
+    if (is_medical_professional) {
+      await pool.query(
+        `UPDATE users SET medical_verification_status = 'pending' WHERE id = ?`,
+        [req.user.id]
+      );
+    } else {
+      await pool.query(
+        `UPDATE users SET is_medical_professional = 0, medical_verification_status = 'none' WHERE id = ?`,
+        [req.user.id]
+      );
+    }
     res.json({ message: 'Verification status updated' });
   } catch (error) {
     console.error(error);
@@ -254,11 +284,13 @@ app.post('/api/posts/:id/vote', authenticate, async (req, res) => {
       // Remove vote (Unlike)
       await pool.query('DELETE FROM post_votes WHERE post_id = ? AND user_id = ?', [id, userId]);
       const [countRows] = await pool.query('SELECT COUNT(*) as count FROM post_votes WHERE post_id = ?', [id]);
+      io.emit('post_updated', id);
       return res.json({ message: 'Unliked', user_vote: null, vote_count: countRows[0].count });
     } else {
       // Add vote (Like)
       await pool.query('INSERT INTO post_votes (post_id, user_id, vote_type) VALUES (?, ?, \'like\')', [id, userId]);
       const [countRows] = await pool.query('SELECT COUNT(*) as count FROM post_votes WHERE post_id = ?', [id]);
+      io.emit('post_updated', id);
       return res.json({ message: 'Liked', user_vote: 'like', vote_count: countRows[0].count });
     }
   } catch (error) {
@@ -275,6 +307,8 @@ app.get('/api/posts/:id', authenticate, async (req, res) => {
     
     const [posts] = await pool.query(`
       SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional, c.name as community_name,
+      (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count,
+      (SELECT COUNT(*) FROM post_votes pv WHERE pv.post_id = p.id AND pv.vote_type = 'like') as upvotes,
       (SELECT COUNT(*) FROM post_votes pv WHERE pv.post_id = p.id) as vote_count,
       (SELECT vote_type FROM post_votes pv WHERE pv.post_id = p.id AND pv.user_id = ?) as user_vote
       FROM posts p 
@@ -310,6 +344,7 @@ app.post('/api/posts/:id/comments', authenticate, async (req, res) => {
       `INSERT INTO comments (post_id, author_id, content, parent_id) VALUES (?, ?, ?, ?)`,
       [id, author_id, content, parent_id || null]
     );
+    io.emit('post_updated', id);
     res.json({ id: result.insertId, post_id: id, author_id, content, parent_id: parent_id || null });
   } catch (error) {
     console.error(error);
@@ -335,6 +370,7 @@ app.post('/api/comments/:id/vote', authenticate, async (req, res) => {
         if (oldVote === 'like') await pool.query('UPDATE comments SET likes_count = likes_count - 1 WHERE id = ?', [id]);
         if (oldVote === 'dislike') await pool.query('UPDATE comments SET dislikes_count = dislikes_count - 1 WHERE id = ?', [id]);
       }
+      io.emit('comment_updated', id);
       return res.json({ message: 'Vote removed' });
     }
 
@@ -354,6 +390,8 @@ app.post('/api/comments/:id/vote', authenticate, async (req, res) => {
       if (vote_type === 'like') await pool.query('UPDATE comments SET likes_count = likes_count + 1 WHERE id = ?', [id]);
       else await pool.query('UPDATE comments SET dislikes_count = dislikes_count + 1 WHERE id = ?', [id]);
     }
+    
+    io.emit('comment_updated', id);
     res.json({ message: 'Vote recorded' });
   } catch (err) {
     console.error(err);
@@ -1171,6 +1209,7 @@ app.post('/api/health-shares/:id/vote', authenticate, async (req, res) => {
         if (oldVote === 'like') await pool.query('UPDATE health_shares SET likes_count = likes_count - 1 WHERE id = ?', [id]);
         if (oldVote === 'dislike') await pool.query('UPDATE health_shares SET dislikes_count = dislikes_count - 1 WHERE id = ?', [id]);
       }
+      io.emit('health_share_updated', id);
       return res.json({ message: 'Vote removed' });
     }
 
@@ -1185,6 +1224,7 @@ app.post('/api/health-shares/:id/vote', authenticate, async (req, res) => {
       if (vote_type === 'like') await pool.query('UPDATE health_shares SET likes_count = likes_count + 1 WHERE id = ?', [id]);
       else await pool.query('UPDATE health_shares SET dislikes_count = dislikes_count + 1 WHERE id = ?', [id]);
     }
+    io.emit('health_share_updated', id);
     res.json({ message: 'Vote recorded' });
   } catch (err) {
     console.error(err);
@@ -1219,6 +1259,7 @@ app.post('/api/health-shares/:id/comments', authenticate, async (req, res) => {
       `INSERT INTO health_share_comments (share_id, author_id, content) VALUES (?, ?, ?)`,
       [id, author_id, content]
     );
+    io.emit('health_share_updated', id);
     res.json({ id: result.insertId, message: 'Comment added' });
   } catch (error) {
     console.error(error);
@@ -1289,7 +1330,203 @@ app.get('/api/users/:id/public', authenticate, async (req, res) => {
   }
 });
 
+// ======================= ADMIN ROUTES =======================
+
+app.get('/api/admin/stats', authenticate, isAdmin, async (req, res) => {
+  try {
+    const [[{ users_count }]] = await pool.query('SELECT COUNT(*) as users_count FROM users');
+    const [[{ posts_count }]] = await pool.query('SELECT COUNT(*) as posts_count FROM posts');
+    const [[{ communities_count }]] = await pool.query('SELECT COUNT(*) as communities_count FROM communities');
+    const [[{ blood_requests_count }]] = await pool.query('SELECT COUNT(*) as blood_requests_count FROM blood_requests');
+    
+    res.json({
+      users: users_count,
+      posts: posts_count,
+      communities: communities_count,
+      bloodRequests: blood_requests_count
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/admin/users', authenticate, isAdmin, async (req, res) => {
+  try {
+    const [users] = await pool.query('SELECT id, username, email, is_admin, created_at, profile_picture, is_medical_professional FROM users ORDER BY created_at DESC');
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/admin/users/:id', authenticate, isAdmin, async (req, res) => {
+  try {
+    if (req.params.id == req.user.id) return res.status(400).json({ error: 'Cannot delete yourself' });
+    await pool.query('DELETE FROM users WHERE id = ?', [req.params.id]);
+    res.json({ message: 'User deleted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/admin/users/:id/promote', authenticate, isAdmin, async (req, res) => {
+  try {
+    await pool.query('UPDATE users SET is_admin = 1 WHERE id = ?', [req.params.id]);
+    res.json({ message: 'User promoted to admin' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/admin/posts', authenticate, isAdmin, async (req, res) => {
+  try {
+    const [posts] = await pool.query(`
+      SELECT p.*, u.username as author_name, c.name as community_name
+      FROM posts p
+      LEFT JOIN users u ON p.author_id = u.id
+      LEFT JOIN communities c ON p.community_id = c.id
+      ORDER BY p.created_at DESC LIMIT 100
+    `);
+    res.json(posts);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/admin/posts/:id', authenticate, isAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM posts WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Post deleted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/admin/communities', authenticate, isAdmin, async (req, res) => {
+  try {
+    const [communities] = await pool.query(`
+      SELECT c.*, u.username as creator_name
+      FROM communities c
+      LEFT JOIN users u ON c.created_by = u.id
+      ORDER BY c.created_at DESC
+    `);
+    res.json(communities);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/admin/communities/:id', authenticate, isAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM communities WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Community deleted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/admin/blood-requests', authenticate, isAdmin, async (req, res) => {
+  try {
+    const [requests] = await pool.query(`
+      SELECT b.*, u.username as requester_name
+      FROM blood_requests b
+      LEFT JOIN users u ON b.user_id = u.id
+      ORDER BY b.created_at DESC
+    `);
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/admin/blood-requests/:id', authenticate, isAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM blood_requests WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Blood request deleted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/admin/medical-requests', authenticate, isAdmin, async (req, res) => {
+  try {
+    const [requests] = await pool.query(`
+      SELECT id, username, email, profile_picture, created_at 
+      FROM users 
+      WHERE medical_verification_status = 'pending'
+      ORDER BY created_at DESC
+    `);
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/admin/users/:id/approve-medical', authenticate, isAdmin, async (req, res) => {
+  try {
+    await pool.query(`UPDATE users SET is_medical_professional = 1, medical_verification_status = 'approved' WHERE id = ?`, [req.params.id]);
+    res.json({ message: 'Medical verification approved' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/admin/users/:id/reject-medical', authenticate, isAdmin, async (req, res) => {
+  try {
+    await pool.query(`UPDATE users SET is_medical_professional = 0, medical_verification_status = 'rejected' WHERE id = ?`, [req.params.id]);
+    res.json({ message: 'Medical verification rejected' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/admin/medical-verified-users', authenticate, isAdmin, async (req, res) => {
+  try {
+    const [users] = await pool.query(`
+      SELECT id, username, email, profile_picture, created_at 
+      FROM users 
+      WHERE medical_verification_status = 'approved'
+      ORDER BY created_at DESC
+    `);
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/admin/users/:id/unverify-medical', authenticate, isAdmin, async (req, res) => {
+  try {
+    await pool.query(`UPDATE users SET is_medical_professional = 0, medical_verification_status = 'none' WHERE id = ?`, [req.params.id]);
+    res.json({ message: 'Medical verification revoked' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/admin/health-shares', authenticate, isAdmin, async (req, res) => {
+  try {
+    const [shares] = await pool.query(`
+      SELECT h.*, u.username as author_name 
+      FROM health_shares h 
+      LEFT JOIN users u ON h.author_id = u.id 
+      ORDER BY h.created_at DESC
+    `);
+    res.json(shares);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/admin/health-shares/:id', authenticate, isAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM health_shares WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Health share deleted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

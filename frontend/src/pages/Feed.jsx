@@ -9,6 +9,7 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
+import { socket } from '../socket';
 import PostCard from '../components/PostCard';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
@@ -74,7 +75,23 @@ export default function Feed() {
 
   useEffect(() => {
     fetchPosts();
-  }, [filter]);
+  }, [filter, searchQuery]);
+
+  useEffect(() => {
+    const handlePostUpdated = async (postId) => {
+      try {
+        const res = await axios.get(`${API_URL}/posts/${postId}`);
+        setPosts(currentPosts => currentPosts.map(p => p.id === parseInt(postId) ? res.data : p));
+      } catch (err) {
+        console.error('Error fetching updated post', err);
+      }
+    };
+    
+    socket.on('post_updated', handlePostUpdated);
+    return () => {
+      socket.off('post_updated', handlePostUpdated);
+    };
+  }, []);
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -229,13 +246,13 @@ export default function Feed() {
       </div>
 
       {/* Main 2-Column Responsive Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-8">
+      <div className={`grid grid-cols-1 ${user?.is_admin ? '' : 'lg:grid-cols-3 lg:gap-8'}`}>
         
         {/* Left Column (Main Feed) */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className={`${user?.is_admin ? '' : 'lg:col-span-2'} space-y-6`}>
           
           {/* Quick Post Creator Widget */}
-          {user && (
+          {user && !user.is_admin && (
             <div className="bg-white p-4 sm:p-5 rounded-3xl border border-gray-150 shadow-sm flex items-center space-x-3 sm:space-x-4 transition-all hover:border-gray-200">
               <Link to="/profile" className="flex-shrink-0">
                 <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden border border-gray-150">
@@ -284,7 +301,8 @@ export default function Feed() {
         </div>
 
         {/* Right Column (Sidebar Widgets - Hidden on mobile/tablet) */}
-        <div className="hidden lg:block lg:col-span-1 space-y-6">
+        {!user?.is_admin && (
+          <div className="hidden lg:block lg:col-span-1 space-y-6">
           
           {/* Widget 1: Quick Profile Stats (Reputation & Badge Upgrades) */}
           {user && (
@@ -328,23 +346,25 @@ export default function Feed() {
                 </div>
 
                 {/* Reputation / Level progress metrics */}
-                <div className="mt-4 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-gray-400 uppercase tracking-wide text-[9px]">Reputation level</span>
-                    <span className="font-extrabold text-primary-600 text-[10px] bg-primary-50 px-2 py-0.5 rounded-full uppercase tracking-wider">{levelName}</span>
-                  </div>
-                  
-                  {/* Custom Progress Bar */}
-                  <div className="space-y-1">
-                    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden shadow-inner border border-gray-200/50">
-                      <div className="bg-primary-500 h-full rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
+                {!user.is_admin && (
+                  <div className="mt-4 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-gray-400 uppercase tracking-wide text-[9px]">Reputation level</span>
+                      <span className="font-extrabold text-primary-600 text-[10px] bg-primary-50 px-2 py-0.5 rounded-full uppercase tracking-wider">{levelName}</span>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] font-bold text-gray-400">
-                      <span>{reputationPoints} Points</span>
-                      <span>Next Level: {nextLevelPoints} pts</span>
+                    
+                    {/* Custom Progress Bar */}
+                    <div className="space-y-1">
+                      <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden shadow-inner border border-gray-200/50">
+                        <div className="bg-primary-500 h-full rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] font-bold text-gray-400">
+                        <span>{reputationPoints} Points</span>
+                        <span>Next Level: {nextLevelPoints} pts</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Stats grid display */}
                 <div className="grid grid-cols-2 gap-4 mt-4 py-3 bg-gray-50/50 rounded-2xl border border-gray-100">
@@ -444,6 +464,7 @@ export default function Feed() {
             </div>
           </div>
         </div>
+        )}
 
       </div>
     </div>

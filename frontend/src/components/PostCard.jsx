@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   AlertTriangle, HelpCircle, MessageCircle, MapPin, Clock, 
   Trash2, ThumbsUp, Share2, Copy, X
@@ -49,7 +49,16 @@ export default function PostCard({ post, currentUser, onDelete, onVote, hideComm
   const [hasVoted, setHasVoted] = useState(post.user_vote === 'like');
   const [isVoting, setIsVoting] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
   const shareMenuRef = useRef(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    setHasVoted(post.user_vote === 'upvote' || post.user_vote === 'like');
+    setVotes(post.upvotes || 0);
+  }, [post.user_vote, post.upvotes]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -96,6 +105,23 @@ export default function PostCard({ post, currentUser, onDelete, onVote, hideComm
       toast.error("Failed to record vote");
     } finally {
       setIsVoting(false);
+    }
+  };
+
+  const handleCommentSubmit = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    setSubmittingComment(true);
+    try {
+      await axios.post(`${API_URL}/posts/${post.id}/comments`, { content: newComment });
+      toast.success('Comment added successfully!');
+      setNewComment('');
+      setShowCommentInput(false);
+      navigate(`/post/${post.id}`);
+    } catch (err) {
+      toast.error('Failed to add comment');
+    } finally {
+      setSubmittingComment(false);
     }
   };
 
@@ -231,24 +257,42 @@ export default function PostCard({ post, currentUser, onDelete, onVote, hideComm
             {/* Interactive action buttons */}
             <div className="flex items-center space-x-2 justify-end w-full sm:w-auto flex-shrink-0">
               
-              {/* Upvote Button */}
-              <button
-                onClick={handleVote}
-                className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-300 focus:outline-none bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-gray-900 cursor-pointer active:scale-95"
-                style={hasVoted ? { background: '#059669', color: '#fff' } : {}}
-                title="Upvote Post"
-              >
-                <ThumbsUp className={`w-3.5 h-3.5 transition-transform duration-200 ${hasVoted ? 'fill-current scale-110' : ''}`} />
-                <span>{votes}</span>
-              </button>
+              {/* Upvote Button / Count */}
+              {currentUser?.is_admin === 1 || currentUser?.is_admin === true ? (
+                <div className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-gray-50 text-gray-500">
+                  <ThumbsUp className="w-3.5 h-3.5" />
+                  <span>{votes}</span>
+                </div>
+              ) : (
+                <button
+                  onClick={handleVote}
+                  className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-300 focus:outline-none bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-gray-900 cursor-pointer active:scale-95"
+                  style={hasVoted ? { background: '#059669', color: '#fff' } : {}}
+                  title="Upvote Post"
+                >
+                  <ThumbsUp className={`w-3.5 h-3.5 transition-transform duration-200 ${hasVoted ? 'fill-current scale-110' : ''}`} />
+                  <span>{votes}</span>
+                </button>
+              )}
 
-              {/* Comments count */}
-              <div className={`flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${
-                isEmergency ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-600'
-              }`}>
-                <MessageCircle className="w-3.5 h-3.5 mr-1" />
-                <span>{post.comment_count || 0}</span>
-              </div>
+              {/* Comments count / Toggle input */}
+              {currentUser?.is_admin === 1 || currentUser?.is_admin === true ? (
+                <div className="flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-gray-50 text-gray-500">
+                  <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                  <span>{post.comment_count || 0}</span>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowCommentInput(!showCommentInput); }}
+                  className={`flex items-center px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-300 focus:outline-none cursor-pointer active:scale-95 ${
+                    isEmergency ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                  }`}
+                  title="Add a comment"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                  <span>{post.comment_count || 0}</span>
+                </button>
+              )}
 
               {/* Share Button with Expandable Menu */}
               <div className="relative" ref={shareMenuRef}>
@@ -292,6 +336,38 @@ export default function PostCard({ post, currentUser, onDelete, onVote, hideComm
           </div>
         </div>
       </article>
+
+      {/* Inline Comment Input */}
+      {showCommentInput && (
+        <div className="mt-3 relative z-30 animate-fade-in bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
+          <form onSubmit={handleCommentSubmit} className="flex flex-col space-y-2">
+            <textarea
+              autoFocus
+              className="w-full bg-gray-50 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 border border-gray-200 resize-none transition-all"
+              rows="2"
+              placeholder="Write a comment..."
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+            />
+            <div className="flex justify-end space-x-2">
+              <button 
+                type="button" 
+                onClick={() => setShowCommentInput(false)}
+                className="px-4 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                disabled={!newComment.trim() || submittingComment}
+                className="px-4 py-1.5 text-xs font-bold text-white bg-primary-600 hover:bg-primary-500 rounded-lg shadow-sm disabled:opacity-50 transition-colors"
+              >
+                {submittingComment ? 'Posting...' : 'Post'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

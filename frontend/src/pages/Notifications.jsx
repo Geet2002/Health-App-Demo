@@ -29,6 +29,9 @@ export default function Notifications() {
     try {
       await axios.put(`${API_URL}/notifications/${id}/read`);
       setNotifs(notifs.map(n => n.id === id ? { ...n, is_read: 1 } : n));
+      
+      // Dispatch an event so the Sidebar can instantly update its badge without reloading
+      window.dispatchEvent(new CustomEvent('notificationRead'));
     } catch(err) {
       console.error(err);
     }

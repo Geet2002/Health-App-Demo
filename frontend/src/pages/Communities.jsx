@@ -2,8 +2,9 @@ import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { Users, Lock, Unlock, Plus, Search, CheckCircle2 } from 'lucide-react';
+import { Users, Lock, Unlock, Plus, Search, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -29,19 +30,21 @@ const CommunityCard = ({ comm, handleQuickJoin }) => (
         </div>
         
         <div className="relative z-10">
-          {!comm.user_status ? (
-            <button 
-              onClick={(e) => handleQuickJoin(e, comm.id)} 
-              className="text-sm font-bold bg-gray-50 text-primary-700 hover:bg-primary-100 hover:text-primary-800 px-4 py-2 rounded-xl transition-colors border border-gray-100"
-            >
-              Join
-            </button>
-          ) : comm.user_status === 'pending' ? (
-            <span className="text-xs font-bold bg-yellow-50 text-yellow-700 px-3 py-2 rounded-xl border border-yellow-200">Pending</span>
-          ) : (
-            <span className="text-xs font-bold bg-green-50 text-green-700 px-3 py-2 rounded-xl flex items-center border border-green-200">
-              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Joined
-            </span>
+          {!comm.isAdminView && (
+            !comm.user_status ? (
+              <button 
+                onClick={(e) => handleQuickJoin(e, comm.id)} 
+                className="text-sm font-bold bg-gray-50 text-primary-700 hover:bg-primary-100 hover:text-primary-800 px-4 py-2 rounded-xl transition-colors border border-gray-100"
+              >
+                Join
+              </button>
+            ) : comm.user_status === 'pending' ? (
+              <span className="text-xs font-bold bg-yellow-50 text-yellow-700 px-3 py-2 rounded-xl border border-yellow-200">Pending</span>
+            ) : (
+              <span className="text-xs font-bold bg-green-50 text-green-700 px-3 py-2 rounded-xl flex items-center border border-green-200">
+                <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Joined
+              </span>
+            )
           )}
         </div>
       </div>
@@ -50,6 +53,7 @@ const CommunityCard = ({ comm, handleQuickJoin }) => (
 );
 
 export default function Communities() {
+  const { user } = useAuth();
   const [communities, setCommunities] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -96,12 +100,20 @@ export default function Communities() {
       {/* Page Title & Create Button */}
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-2">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Health Communities</h1>
-          <p className="text-gray-500 mt-2">Join groups or create your own safe space to connect and share.</p>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+            {user?.is_admin ? 'Health Communities (Admin View)' : 'Health Communities'}
+          </h1>
+          <p className="text-gray-500 mt-2">
+            {user?.is_admin 
+              ? 'View and monitor all health communities across the platform.' 
+              : 'Join groups or create your own safe space to connect and share.'}
+          </p>
         </div>
-        <Link to="/communities/create" className="btn-primary flex items-center justify-center shrink-0">
-          <Plus className="w-4 h-4 mr-2" /> Create Community
-        </Link>
+        {!user?.is_admin && (
+          <Link to="/communities/create" className="btn-primary flex items-center justify-center shrink-0">
+            <Plus className="w-4 h-4 mr-2" /> Create Community
+          </Link>
+        )}
       </div>
 
       {/* Search Input */}
@@ -118,49 +130,73 @@ export default function Communities() {
         />
       </div>
 
-      {/* Section 1: My Joined Communities */}
-      <div className="space-y-4">
-        <h2 className="text-xl sm:text-2xl font-black text-gray-900 flex items-center px-1">
-          <Users className="w-5 h-5 mr-2.5 text-primary-500 animate-pulse" />
-          My Communities {myComms.length > 0 && `(${myComms.length})`}
-        </h2>
-        
-        {myComms.length === 0 ? (
-          <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-gray-200 p-6 shadow-sm">
-            <Users className="mx-auto h-10 w-10 text-gray-300 mb-2" />
-            <h3 className="text-sm font-bold text-gray-800">No joined communities</h3>
-            <p className="mt-1 text-xs text-gray-400 max-w-sm mx-auto">You haven't joined any health groups yet. Explore the discover list below to join and participate!</p>
+      {/* Admin Unified View vs Regular User View */}
+      {user?.is_admin ? (
+        <div className="space-y-4">
+          <div className="flex items-center text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-6 shadow-sm">
+            <ShieldCheck className="w-6 h-6 mr-3" />
+            <span className="font-semibold text-sm">You are viewing all communities with administrator privileges. Join/Create actions are disabled.</span>
           </div>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {myComms.map(comm => (
-              <CommunityCard key={comm.id} comm={comm} handleQuickJoin={handleQuickJoin} />
-            ))}
-          </div>
-        )}
-      </div>
 
-      <hr className="border-gray-200/60 my-8" />
-
-      {/* Section 2: Discover Communities */}
-      <div className="space-y-4">
-        <h2 className="text-xl sm:text-2xl font-black text-gray-900 flex items-center px-1">
-          <Search className="w-5 h-5 mr-2.5 text-emerald-500" />
-          Discover New Communities
-        </h2>
-        
-        {otherComms.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-3xl border border-gray-150 p-6 shadow-sm">
-            <p className="text-gray-400 font-medium">No new communities to discover at this time.</p>
-          </div>
-        ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {otherComms.map(comm => (
-              <CommunityCard key={comm.id} comm={comm} handleQuickJoin={handleQuickJoin} />
-            ))}
+            {filteredCommunities.length === 0 ? (
+              <div className="col-span-full text-center py-12 bg-white rounded-3xl border border-gray-150 p-6 shadow-sm">
+                <p className="text-gray-400 font-medium">No communities found.</p>
+              </div>
+            ) : (
+              filteredCommunities.map(comm => (
+                <CommunityCard key={comm.id} comm={{...comm, isAdminView: true}} handleQuickJoin={handleQuickJoin} />
+              ))
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <>
+          {/* Section 1: My Joined Communities */}
+          <div className="space-y-4">
+            <h2 className="text-xl sm:text-2xl font-black text-gray-900 flex items-center px-1">
+              <Users className="w-5 h-5 mr-2.5 text-primary-500 animate-pulse" />
+              My Communities {myComms.length > 0 && `(${myComms.length})`}
+            </h2>
+            
+            {myComms.length === 0 ? (
+              <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-gray-200 p-6 shadow-sm">
+                <Users className="mx-auto h-10 w-10 text-gray-300 mb-2" />
+                <h3 className="text-sm font-bold text-gray-800">No joined communities</h3>
+                <p className="mt-1 text-xs text-gray-400 max-w-sm mx-auto">You haven't joined any health groups yet. Explore the discover list below to join and participate!</p>
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {myComms.map(comm => (
+                  <CommunityCard key={comm.id} comm={comm} handleQuickJoin={handleQuickJoin} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <hr className="border-gray-200/60 my-8" />
+
+          {/* Section 2: Discover Communities */}
+          <div className="space-y-4">
+            <h2 className="text-xl sm:text-2xl font-black text-gray-900 flex items-center px-1">
+              <Search className="w-5 h-5 mr-2.5 text-emerald-500" />
+              Discover New Communities
+            </h2>
+            
+            {otherComms.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-3xl border border-gray-150 p-6 shadow-sm">
+                <p className="text-gray-400 font-medium">No new communities to discover at this time.</p>
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {otherComms.map(comm => (
+                  <CommunityCard key={comm.id} comm={comm} handleQuickJoin={handleQuickJoin} />
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

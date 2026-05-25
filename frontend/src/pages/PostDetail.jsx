@@ -7,6 +7,7 @@ import MedicalBadge from '../components/MedicalBadge';
 import { AlertTriangle, HelpCircle, MapPin, Send, ArrowLeft, User, Clock, Trash2, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import { useAuth } from '../context/AuthContext';
+import { socket } from '../socket';
 import GoogleMap from '../components/GoogleMap';
 import { useConfirm } from '../context/ConfirmContext';
 
@@ -56,15 +57,30 @@ const CommentItem = ({ comment, allComments, user, onReply, onDelete, onVote, de
             <p className="text-gray-700 whitespace-pre-line text-sm mb-3">{comment.content}</p>
             
             <div className="flex items-center space-x-4 text-xs font-medium text-gray-500">
-              <button onClick={() => onVote(comment.id, 'like')} className={`flex items-center space-x-1 hover:text-primary-600 transition-colors ${comment.user_vote === 'like' ? 'text-primary-600' : ''}`}>
-                <ThumbsUp className={`w-4 h-4 ${comment.user_vote === 'like' ? 'fill-current' : ''}`} />
-                <span>{comment.likes_count || 0}</span>
-              </button>
-              <button onClick={() => onVote(comment.id, 'dislike')} className={`flex items-center space-x-1 hover:text-red-600 transition-colors ${comment.user_vote === 'dislike' ? 'text-red-600' : ''}`}>
-                <ThumbsDown className={`w-4 h-4 ${comment.user_vote === 'dislike' ? 'fill-current' : ''}`} />
-                <span>{comment.dislikes_count || 0}</span>
-              </button>
-              {depth < 3 && user && (
+              {user?.is_admin === 1 || user?.is_admin === true ? (
+                <>
+                  <div className="flex items-center space-x-1 text-gray-400">
+                    <ThumbsUp className="w-4 h-4" />
+                    <span>{comment.likes_count || 0}</span>
+                  </div>
+                  <div className="flex items-center space-x-1 text-gray-400">
+                    <ThumbsDown className="w-4 h-4" />
+                    <span>{comment.dislikes_count || 0}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => onVote(comment.id, 'like')} className={`flex items-center space-x-1 hover:text-primary-600 transition-colors ${comment.user_vote === 'like' ? 'text-primary-600' : ''}`}>
+                    <ThumbsUp className={`w-4 h-4 ${comment.user_vote === 'like' ? 'fill-current' : ''}`} />
+                    <span>{comment.likes_count || 0}</span>
+                  </button>
+                  <button onClick={() => onVote(comment.id, 'dislike')} className={`flex items-center space-x-1 hover:text-red-600 transition-colors ${comment.user_vote === 'dislike' ? 'text-red-600' : ''}`}>
+                    <ThumbsDown className={`w-4 h-4 ${comment.user_vote === 'dislike' ? 'fill-current' : ''}`} />
+                    <span>{comment.dislikes_count || 0}</span>
+                  </button>
+                </>
+              )}
+              {(user?.is_admin !== 1 && user?.is_admin !== true) && depth < 3 && user && (
                 <button onClick={() => setShowReply(!showReply)} className="flex items-center space-x-1 hover:text-primary-600 transition-colors ml-2">
                   <MessageSquare className="w-4 h-4" />
                   <span>Reply</span>
@@ -75,7 +91,7 @@ const CommentItem = ({ comment, allComments, user, onReply, onDelete, onVote, de
         </div>
       </div>
       
-      {showReply && (
+      {showReply && (user?.is_admin !== 1 && user?.is_admin !== true) && (
         <div className="mt-2 ml-4 sm:ml-8 pl-4 border-l-2 border-gray-100">
            <textarea
               autoFocus
@@ -120,6 +136,24 @@ export default function PostDetail() {
 
   useEffect(() => {
     fetchPostDetails();
+
+    const handlePostUpdated = (updatedId) => {
+      if (parseInt(updatedId) === parseInt(id)) {
+        fetchPostDetails();
+      }
+    };
+
+    const handleCommentUpdated = () => {
+      fetchPostDetails();
+    };
+
+    socket.on('post_updated', handlePostUpdated);
+    socket.on('comment_updated', handleCommentUpdated);
+
+    return () => {
+      socket.off('post_updated', handlePostUpdated);
+      socket.off('comment_updated', handleCommentUpdated);
+    };
   }, [id]);
 
   const fetchPostDetails = async () => {
@@ -328,8 +362,6 @@ export default function PostDetail() {
               </div>
             );
           })()}
-
-          {/* Removed bottom user info block */}
         </div>
       </div>
 
@@ -360,34 +392,36 @@ export default function PostDetail() {
         )}
 
         {/* Add Comment Form */}
-        <div className="mt-10 bg-gray-50 p-6 sm:p-8 rounded-2xl border border-gray-200 shadow-sm">
-          <h4 className="font-bold text-gray-900 mb-4 flex items-center">
-            <MessageSquare className="w-5 h-5 mr-2 text-primary-600" />
-            {post.type === 'emergency' ? 'Add Hospital Suggestion / Help' : 'Your Advice / Suggestion'}
-          </h4>
-          <form onSubmit={handleCommentSubmit}>
-            <textarea
-              required
-              rows={4}
-              placeholder={post.type === 'emergency' ? "Suggest the nearest hospital with emergency care..." : "Write your suggestion here..."}
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-all bg-white resize-none"
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-            />
-            <div className="mt-4 flex justify-end">
-              <button
-                 type="submit"
-                 disabled={submitting || !newComment.trim()}
-                 className={`flex items-center px-6 py-2.5 rounded-lg text-sm font-bold shadow transition-all ${
-                   submitting || !newComment.trim() ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-500 text-white focus:ring-2 focus:ring-offset-2 focus:ring-primary-500'
-                 }`}
-              >
-                {submitting ? 'Posting...' : 'Submit Suggestion'}
-                {!submitting && <Send className="w-4 h-4 ml-2" />}
-              </button>
-            </div>
-          </form>
-        </div>
+        {(user?.is_admin !== 1 && user?.is_admin !== true) && (
+          <div className="mt-10 bg-gray-50 p-6 sm:p-8 rounded-2xl border border-gray-200 shadow-sm">
+            <h4 className="font-bold text-gray-900 mb-4 flex items-center">
+              <MessageSquare className="w-5 h-5 mr-2 text-primary-600" />
+              {post.type === 'emergency' ? 'Add Hospital Suggestion / Help' : 'Your Advice / Suggestion'}
+            </h4>
+            <form onSubmit={handleCommentSubmit}>
+              <textarea
+                required
+                rows={4}
+                placeholder={post.type === 'emergency' ? "Suggest the nearest hospital with emergency care..." : "Write your suggestion here..."}
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-all bg-white resize-none"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+              />
+              <div className="mt-4 flex justify-end">
+                <button
+                   type="submit"
+                   disabled={submitting || !newComment.trim()}
+                   className={`flex items-center px-6 py-2.5 rounded-lg text-sm font-bold shadow transition-all ${
+                     submitting || !newComment.trim() ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-500 text-white focus:ring-2 focus:ring-offset-2 focus:ring-primary-500'
+                   }`}
+                >
+                  {submitting ? 'Posting...' : 'Submit Suggestion'}
+                  {!submitting && <Send className="w-4 h-4 ml-2" />}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );

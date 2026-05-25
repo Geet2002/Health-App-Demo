@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   HeartPulse, PlusCircle, AlertCircle, Home, User, 
-  LogOut, Users, Bell, Droplets, Image as ImageIcon 
+  LogOut, Users, Bell, Droplets, Image as ImageIcon, Shield
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -27,7 +27,20 @@ export default function Sidebar() {
         })
         .catch(err => console.error("Failed to fetch notifications:", err));
     }
-    return () => { isMounted = false; };
+    
+    // Listener for when a notification is read to immediately decrement the badge
+    const handleNotificationRead = () => {
+      if (isMounted) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    };
+    
+    window.addEventListener('notificationRead', handleNotificationRead);
+    
+    return () => { 
+      isMounted = false; 
+      window.removeEventListener('notificationRead', handleNotificationRead);
+    };
   }, [user]);
 
   const handleLogout = async () => {
@@ -81,10 +94,12 @@ export default function Sidebar() {
               <span className="hidden sm:inline">Communities</span>
             </Link>
 
-            <Link to="/blood-donation" className={navLinkClass('/blood-donation')} title="Blood Donation">
-              <Droplets className="w-6 h-6 sm:w-5 sm:h-5 text-red-500" />
-              <span className="hidden sm:inline">Blood Donation</span>
-            </Link>
+            {!user.is_admin && (
+              <Link to="/blood-donation" className={navLinkClass('/blood-donation')} title="Blood Donation">
+                <Droplets className="w-6 h-6 sm:w-5 sm:h-5 text-red-500" />
+                <span className="hidden sm:inline">Blood Donation</span>
+              </Link>
+            )}
           
             <Link to="/notifications" className={`${navLinkClass('/notifications')} relative`} title="Notifications">
               <div className="relative">
@@ -97,6 +112,13 @@ export default function Sidebar() {
               </div>
               <span className="hidden sm:inline">Notifications</span>
             </Link>
+
+            {user.is_admin ? (
+              <Link to="/admin" className={navLinkClass('/admin')} title="Admin Panel">
+                <Shield className="w-6 h-6 sm:w-5 sm:h-5 text-purple-600" />
+                <span className="hidden sm:inline">Admin Panel</span>
+              </Link>
+            ) : null}
           </>
         )}
       </nav>
@@ -105,16 +127,18 @@ export default function Sidebar() {
       <div className="hidden sm:block p-4 border-t border-gray-200">
         {user ? (
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Link to="/create?type=query" className="btn-primary w-full flex items-center justify-center space-x-2">
-                <PlusCircle className="w-4 h-4" />
-                <span>Ask Question</span>
-              </Link>
-              <Link to="/create?type=emergency" className="btn-emergency w-full flex items-center justify-center space-x-2">
-                <AlertCircle className="w-4 h-4" />
-                <span>Emergency Alert</span>
-              </Link>
-            </div>
+            {!user.is_admin && (
+              <div className="space-y-2">
+                <Link to="/create?type=query" className="btn-primary w-full flex items-center justify-center space-x-2">
+                  <PlusCircle className="w-4 h-4" />
+                  <span>Ask Question</span>
+                </Link>
+                <Link to="/create?type=emergency" className="btn-emergency w-full flex items-center justify-center space-x-2">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Emergency Alert</span>
+                </Link>
+              </div>
+            )}
           
             <div className="flex items-center justify-between pt-4 border-t border-gray-100">
               <Link to="/profile" className="flex items-center space-x-2 overflow-hidden group flex-1 hover:bg-gray-50 p-1.5 rounded-xl transition-colors">
@@ -143,7 +167,7 @@ export default function Sidebar() {
       </div>
 
       {/* Mobile Create Buttons (Floating) */}
-      {user && (
+      {user && !user.is_admin && (
         <div className="sm:hidden fixed bottom-20 right-4 flex flex-col space-y-2 z-50">
            <Link to="/create?type=emergency" className="bg-red-600 text-white p-3 rounded-full shadow-lg">
              <AlertCircle className="w-6 h-6" />

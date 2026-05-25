@@ -4,7 +4,7 @@ import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { 
   User, Calendar, MapPin, HelpCircle, ArrowLeft, Users, 
-  CheckCircle, Award, Activity 
+  CheckCircle, Award, Activity, Heart, TrendingUp, Sparkles 
 } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import MedicalBadge from '../components/MedicalBadge';
@@ -130,42 +130,80 @@ export default function UserPublicProfile() {
           )}
 
           {/* Gamified Reputation & Contributor Stats Section */}
-          <div className="mt-6 pt-6 border-t border-gray-100 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center space-x-2">
-                <Award className="w-5 h-5 text-yellow-500" />
-                <span className="font-extrabold text-gray-800 text-sm">Community Reputation</span>
-              </div>
-              <span className="font-extrabold text-xs text-primary-600 bg-primary-50 px-3 py-1 rounded-full uppercase tracking-wider self-start sm:self-auto">
-                {levelName}
-              </span>
-            </div>
+          <div className="mt-8 pt-8 border-t border-gray-100">
+            {!user.is_admin && (
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-3xl p-6 sm:p-8 mb-6 border border-emerald-100/50 relative overflow-hidden">
+                {/* Decorative background circle */}
+                <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-emerald-200/40 rounded-full blur-2xl"></div>
+                
+                <div className="relative z-10">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2.5 bg-white rounded-2xl shadow-sm text-emerald-500">
+                        <Award className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="font-black text-gray-900 text-lg">Community Reputation</h3>
+                        <p className="text-emerald-700/80 text-xs font-semibold">Keep helping others to rank up!</p>
+                      </div>
+                    </div>
+                    <span className="font-extrabold text-xs text-white bg-emerald-500 px-4 py-1.5 rounded-full uppercase tracking-wider self-start sm:self-auto shadow-md">
+                      {levelName}
+                    </span>
+                  </div>
 
-            {/* Level slider */}
-            <div className="space-y-1.5">
-              <div className="w-full bg-gray-150 rounded-full h-2.5 overflow-hidden shadow-inner border border-gray-200">
-                <div className="bg-primary-500 h-full rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
+                  {/* Level slider */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between text-xs font-bold text-gray-500 mb-1">
+                      <span className="flex items-center text-emerald-700">
+                        <Sparkles className="w-3.5 h-3.5 mr-1" />
+                        {reputationPoints} Points
+                      </span>
+                      <span>{nextLevelPoints} pts for next rank</span>
+                    </div>
+                    <div className="w-full bg-white/60 rounded-full h-3 overflow-hidden shadow-inner border border-emerald-100/50">
+                      <div className="bg-gradient-to-r from-emerald-400 to-teal-500 h-full rounded-full transition-all duration-1000 ease-out relative" style={{ width: `${progressPercent}%` }}>
+                        <div className="absolute inset-0 bg-white/20 w-full animate-pulse"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between text-xs font-bold text-gray-400">
-                <span>{reputationPoints} Reputation Points</span>
-                <span>Next Rank: {nextLevelPoints} pts</span>
-              </div>
-            </div>
+            )}
 
             {/* Stat counts grid */}
-            <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-2">
-              <div className="bg-gray-50/50 p-3.5 rounded-2xl border border-gray-100 text-center">
-                <span className="block text-xl sm:text-2xl font-black text-gray-900">{myPostsCount}</span>
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mt-1 block">Posts Shared</span>
+            <div className={`grid gap-4 sm:gap-6 ${user.is_admin ? 'grid-cols-2' : 'grid-cols-3'}`}>
+              <div className="group bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all hover:-translate-y-1">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 bg-blue-50 text-blue-500 rounded-xl group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                    <Activity className="w-5 h-5" />
+                  </div>
+                  <span className="text-2xl sm:text-3xl font-black text-gray-900">{myPostsCount}</span>
+                </div>
+                <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Posts Shared</span>
               </div>
-              <div className="bg-gray-50/50 p-3.5 rounded-2xl border border-gray-100 text-center">
-                <span className="block text-xl sm:text-2xl font-black text-primary-600">{myUpvotesCount}</span>
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mt-1 block">Upvotes Gained</span>
+
+              <div className="group bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all hover:-translate-y-1">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 bg-rose-50 text-rose-500 rounded-xl group-hover:bg-rose-500 group-hover:text-white transition-colors">
+                    <Heart className="w-5 h-5" />
+                  </div>
+                  <span className="text-2xl sm:text-3xl font-black text-gray-900">{myUpvotesCount}</span>
+                </div>
+                <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Upvotes Gained</span>
               </div>
-              <div className="bg-gray-50/50 p-3.5 rounded-2xl border border-gray-100 text-center">
-                <span className="block text-xl sm:text-2xl font-black text-indigo-600">{reputationPoints}</span>
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mt-1 block">Total Score</span>
-              </div>
+
+              {!user.is_admin && (
+                <div className="group bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all hover:-translate-y-1">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="p-2 bg-indigo-50 text-indigo-500 rounded-xl group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+                      <TrendingUp className="w-5 h-5" />
+                    </div>
+                    <span className="text-2xl sm:text-3xl font-black text-gray-900">{reputationPoints}</span>
+                  </div>
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Total Score</span>
+                </div>
+              )}
             </div>
           </div>
           

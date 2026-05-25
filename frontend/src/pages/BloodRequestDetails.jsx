@@ -243,14 +243,20 @@ export default function BloodRequestDetails() {
                   </div>
                 ) : request.status === 'pending' ? (
                   <div className="w-full text-center">
-                    <Heart className="w-12 h-12 text-red-100 mx-auto mb-3" />
-                    <p className="text-gray-600 mb-4 text-sm">Every drop counts. Offer to donate and help save a life today.</p>
-                    <button 
-                      onClick={() => setShowOfferForm(!showOfferForm)}
-                      className="w-full btn-primary bg-red-600 hover:bg-red-700 py-3 text-lg font-bold"
-                    >
-                      I Can Donate
-                    </button>
+                    {user?.is_admin ? (
+                      <p className="text-gray-500 italic mt-4">Admins cannot donate blood.</p>
+                    ) : (
+                      <>
+                        <Heart className="w-12 h-12 text-red-100 mx-auto mb-3" />
+                        <p className="text-gray-600 mb-4 text-sm">Every drop counts. Offer to donate and help save a life today.</p>
+                        <button 
+                          onClick={() => setShowOfferForm(!showOfferForm)}
+                          className="w-full btn-primary bg-red-600 hover:bg-red-700 py-3 text-lg font-bold"
+                        >
+                          I Can Donate
+                        </button>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="w-full text-center p-6 bg-gray-50 rounded-xl border border-gray-100">

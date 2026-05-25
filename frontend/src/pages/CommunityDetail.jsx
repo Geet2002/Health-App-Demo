@@ -331,7 +331,7 @@ export default function CommunityDetail() {
             )}
           </div>
           <div className="flex flex-col items-end space-y-3">
-            {!myMembership && (
+            {(user?.is_admin !== 1 && user?.is_admin !== true) && !myMembership && (
               <button onClick={handleJoin} className="btn-primary shadow-lg hover:-translate-y-0.5 transition-transform">
                 {comm.is_private ? 'Request to Join' : 'Join Community'}
               </button>
@@ -409,10 +409,12 @@ export default function CommunityDetail() {
                 <div className="space-y-6 animate-fade-in">
                   <div className="flex justify-between items-center">
                     <h2 className="text-xl font-bold flex items-center">Recent Posts</h2>
-                    <Link to={`/create?communityId=${id}`} className="btn-primary py-2 px-4 flex items-center text-sm">
-                      <PlusCircle className="w-4 h-4 mr-1.5" />
-                      Create Post
-                    </Link>
+                    {(user?.is_admin !== 1 && user?.is_admin !== true) && (
+                      <Link to={`/create?communityId=${id}`} className="btn-primary py-2 px-4 flex items-center text-sm">
+                        <PlusCircle className="w-4 h-4 mr-1.5" />
+                        Create Post
+                      </Link>
+                    )}
                   </div>
                   {posts.length === 0 ? (
                     <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-300">

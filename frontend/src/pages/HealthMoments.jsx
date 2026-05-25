@@ -1,7 +1,7 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Heart, ThumbsDown, MessageCircle, Share2, Image as ImageIcon, Video, Mic, Send, X, Trash2 } from 'lucide-react';
+import { Heart, ThumbsDown, MessageCircle, Share2, Image as ImageIcon, Video, Mic, Send, X, Trash2, ShieldCheck } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
@@ -9,6 +9,7 @@ import MedicalBadge from '../components/MedicalBadge';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
 import useSpeechToText from '../hooks/useSpeechToText';
+import { socket } from '../socket';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -50,6 +51,15 @@ export default function HealthMoments() {
 
   useEffect(() => {
     fetchShares();
+
+    const handleUpdate = () => {
+      axios.get(`${API_URL}/health-shares`)
+        .then(res => setShares(res.data))
+        .catch(err => console.error(err));
+    };
+
+    socket.on('health_share_updated', handleUpdate);
+    return () => socket.off('health_share_updated', handleUpdate);
   }, []);
 
   const fetchShares = async () => {
@@ -182,13 +192,25 @@ export default function HealthMoments() {
     <div className="max-w-2xl mx-auto space-y-8 animate-fade-in pb-12">
       
       <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Health Moments</h1>
-        <p className="text-gray-500 mt-2 text-lg">Share your journey, photos, and voice with the community.</p>
+        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+          {user?.is_admin ? 'Health Moments (Admin View)' : 'Health Moments'}
+        </h1>
+        <p className="text-gray-500 mt-2 text-lg">
+          {user?.is_admin ? 'Monitor public health moments and community updates.' : 'Share your journey, photos, and voice with the community.'}
+        </p>
       </div>
 
+      {(user?.is_admin === 1 || user?.is_admin === true) ? (
+        <div className="flex items-center text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-6 shadow-sm">
+          <ShieldCheck className="w-6 h-6 mr-3" />
+          <span className="font-semibold text-sm">You are viewing the public feed with administrator privileges. You cannot create new moments.</span>
+        </div>
+      ) : null}
+
       {/* Create Post Form */}
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
-        <form onSubmit={handlePost}>
+      {!user?.is_admin && (
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
+          <form onSubmit={handlePost}>
           <div className="flex space-x-4">
             <div className="w-10 h-10">
               <Avatar src={user?.profile_picture} name={user?.username} size="w-10 h-10" />
@@ -258,6 +280,7 @@ export default function HealthMoments() {
           </div>
         </form>
       </div>
+      )}
 
       {/* Feed */}
       <div className="space-y-8">
@@ -303,30 +326,46 @@ export default function HealthMoments() {
               {/* Media */}
               {renderMedia(share)}
 
-              {/* Actions */}
-              <div className="p-4 sm:px-6 border-t border-gray-50 flex items-center justify-between">
-                <div className="flex space-x-6">
-                  <button 
-                    onClick={() => handleVote(share.id, share.user_vote === 'like' ? null : 'like')}
-                    className={`flex items-center space-x-1.5 transition ${share.user_vote === 'like' ? 'text-red-500 font-medium' : 'text-gray-500 hover:text-red-500'}`}
-                  >
-                    <Heart className={`w-6 h-6 ${share.user_vote === 'like' ? 'fill-current' : ''}`} />
-                    <span>{share.likes_count || 0}</span>
-                  </button>
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-50 px-6 pb-4">
+                <div className="flex space-x-4">
+                  {user?.is_admin === 1 || user?.is_admin === true ? (
+                    <>
+                      <div className="flex items-center space-x-1.5 text-gray-400">
+                        <Heart className="w-5 h-5" />
+                        <span className="font-medium text-sm">{share.likes_count || 0}</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5 text-gray-400">
+                        <ThumbsDown className="w-5 h-5" />
+                        <span className="font-medium text-sm">{share.dislikes_count || 0}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <button 
+                        onClick={() => handleVote(share.id, share.user_vote === 'like' ? null : 'like')} 
+                        className={`flex items-center space-x-1.5 transition-colors ${share.user_vote === 'like' ? 'text-primary-600' : 'text-gray-500 hover:text-primary-600'}`}
+                      >
+                        <Heart className={`w-5 h-5 ${share.user_vote === 'like' ? 'fill-current' : ''}`} />
+                        <span className="font-medium text-sm">{share.likes_count || 0}</span>
+                      </button>
+                      
+                      <button 
+                        onClick={() => handleVote(share.id, share.user_vote === 'dislike' ? null : 'dislike')} 
+                        className={`flex items-center space-x-1.5 transition-colors ${share.user_vote === 'dislike' ? 'text-red-600' : 'text-gray-500 hover:text-red-600'}`}
+                      >
+                        <ThumbsDown className={`w-5 h-5 ${share.user_vote === 'dislike' ? 'fill-current' : ''}`} />
+                        <span className="font-medium text-sm">{share.dislikes_count || 0}</span>
+                      </button>
+                    </>
+                  )}
                   
                   <button 
-                    onClick={() => handleVote(share.id, share.user_vote === 'dislike' ? null : 'dislike')}
-                    className={`flex items-center space-x-1.5 transition ${share.user_vote === 'dislike' ? 'text-blue-600 font-medium' : 'text-gray-500 hover:text-blue-600'}`}
+                    onClick={() => fetchComments(share.id)} 
+                    className={`flex items-center space-x-1.5 transition-colors ${activeCommentId === share.id ? 'text-primary-600' : 'text-gray-500 hover:text-primary-600'}`}
                   >
-                    <ThumbsDown className={`w-6 h-6 ${share.user_vote === 'dislike' ? 'fill-current' : ''}`} />
-                  </button>
-
-                  <button 
-                    onClick={() => fetchComments(share.id)}
-                    className="flex items-center space-x-1.5 text-gray-500 hover:text-primary-600 transition"
-                  >
-                    <MessageCircle className="w-6 h-6" />
-                    <span>{share.comment_count || 0}</span>
+                    <MessageCircle className="w-5 h-5" />
+                    <span className="font-medium text-sm">{share.comment_count || 0}</span>
                   </button>
                 </div>
                 
@@ -368,22 +407,21 @@ export default function HealthMoments() {
                     )}
                   </div>
                   
-                  <form onSubmit={(e) => handlePostComment(e, share.id)} className="flex items-center relative">
-                    <input 
-                      type="text" 
-                      placeholder="Add a comment..."
-                      className="w-full bg-white border border-gray-200 rounded-full pl-5 pr-12 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                    />
-                    <button 
-                      type="submit" 
-                      disabled={!newComment.trim()}
-                      className="absolute right-2 p-1.5 bg-primary-600 text-white rounded-full hover:bg-primary-700 transition disabled:opacity-50"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </form>
+                  {/* New Comment Input */}
+                  {(user?.is_admin !== 1 && user?.is_admin !== true) && (
+                    <form onSubmit={(e) => handlePostComment(e, share.id)} className="flex mt-4 gap-2">
+                      <input
+                        type="text"
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder="Write a comment..."
+                        className="flex-1 bg-white border border-gray-200 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                      />
+                      <button type="submit" disabled={!newComment.trim()} className="p-2 text-white bg-primary-600 rounded-full hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </form>
+                  )}
                 </div>
               )}
             </div>

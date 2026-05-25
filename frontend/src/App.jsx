@@ -6,6 +6,7 @@ import { X } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ConfirmProvider } from './context/ConfirmContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
 import Sidebar from './components/Sidebar';
 import Feed from './pages/Feed';
 import Landing from './pages/Landing';
@@ -24,6 +25,7 @@ import BloodRequestDetails from './pages/BloodRequestDetails';
 import HealthMoments from './pages/HealthMoments';
 import Profile from './pages/Profile';
 import UserPublicProfile from './pages/UserPublicProfile';
+import AdminPanel from './pages/AdminPanel';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -63,6 +65,7 @@ function AppContent() {
               <Route path="/user/:id" element={<ProtectedRoute><UserPublicProfile /></ProtectedRoute>} />
               
               <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+              <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
             </Routes>
           </div>
         )}

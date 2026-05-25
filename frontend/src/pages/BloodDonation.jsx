@@ -56,11 +56,13 @@ export default function BloodDonation() {
           </h1>
           <p className="text-gray-500 text-sm mt-1">Help save a life by donating blood to those in need.</p>
         </div>
-        <Link to="/blood-donation/create" className="btn-primary flex items-center space-x-2 bg-red-600 hover:bg-red-700 focus:ring-red-500">
-          <PlusCircle className="w-4 h-4" />
-          <span className="hidden sm:inline">Request Blood</span>
-          <span className="sm:hidden">Request</span>
-        </Link>
+        {!user?.is_admin && (
+          <Link to="/blood-donation/create" className="btn-primary flex items-center space-x-2 bg-red-600 hover:bg-red-700 focus:ring-red-500">
+            <PlusCircle className="w-4 h-4" />
+            <span className="hidden sm:inline">Request Blood</span>
+            <span className="sm:hidden">Request</span>
+          </Link>
+        )}
       </div>
 
       {requests.length === 0 ? (
