@@ -128,7 +128,7 @@ export default function AdminVerificationsTab() {
                 <div className="flex items-center space-x-4">
                   <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden shrink-0">
                     {req.profile_picture ? (
-                      <img src={`${API_URL.replace('/api', '')}${req.profile_picture}`} alt="Avatar" className="w-full h-full object-cover" />
+                      <img src={req.profile_picture.startsWith('http') ? req.profile_picture : `${API_URL.replace('/api', '')}${req.profile_picture}`} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (
                       <User className="w-6 h-6 text-primary-600" />
                     )}
@@ -173,7 +173,7 @@ export default function AdminVerificationsTab() {
                 <div className="flex items-center space-x-4">
                   <div className="w-12 h-12 rounded-full bg-green-50 border border-green-100 flex items-center justify-center overflow-hidden shrink-0">
                     {user.profile_picture ? (
-                      <img src={`${API_URL.replace('/api', '')}${user.profile_picture}`} alt="Avatar" className="w-full h-full object-cover" />
+                      <img src={user.profile_picture.startsWith('http') ? user.profile_picture : `${API_URL.replace('/api', '')}${user.profile_picture}`} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (
                       <User className="w-6 h-6 text-green-600" />
                     )}

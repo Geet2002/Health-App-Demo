@@ -12,8 +12,6 @@ import Feed from './pages/Feed';
 import Landing from './pages/Landing';
 import CreatePost from './pages/CreatePost';
 import PostDetail from './pages/PostDetail';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
 import Auth from './pages/Auth';
 import Communities from './pages/Communities';
 import CreateCommunity from './pages/CreateCommunity';

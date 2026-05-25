@@ -386,7 +386,7 @@ export default function HealthMoments() {
                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-xs shrink-0 overflow-hidden">
                             <Link to={`/user/${comment.author_id}`} className="w-full h-full flex items-center justify-center hover:bg-gray-300 transition-colors">
                               {comment.author_profile_picture ? (
-                                <img src={`http://localhost:5001${comment.author_profile_picture}`} alt="" className="w-full h-full object-cover" />
+                                <img src={comment.author_profile_picture.startsWith('http') ? comment.author_profile_picture : `http://localhost:5001${comment.author_profile_picture}`} alt="" className="w-full h-full object-cover" />
                               ) : (
                                 comment.author_name?.[0]?.toUpperCase()
                               )}

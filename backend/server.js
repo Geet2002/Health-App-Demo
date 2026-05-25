@@ -7,7 +7,11 @@ const multer = require('multer');
 const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
+const { OAuth2Client } = require('google-auth-library');
 require('dotenv').config();
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
 
 const app = express();
 const server = http.createServer(app);
@@ -105,6 +109,9 @@ app.post('/api/auth/login', async (req, res) => {
     if (users.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
 
     const user = users[0];
+    if (!user.password_hash) {
+      return res.status(400).json({ error: 'Please sign in with Google' });
+    }
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
@@ -115,6 +122,53 @@ app.post('/api/auth/login', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({ error: 'Google Client ID not configured on server' });
+    }
+    const ticket = await googleClient.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const { sub: google_id, email, name, picture } = payload;
+
+    // Check if user exists by google_id or email
+    let [users] = await pool.query(`SELECT * FROM users WHERE google_id = ? OR email = ?`, [google_id, email]);
+    
+    let user;
+    if (users.length > 0) {
+      user = users[0];
+      // If user exists but no google_id, update it
+      if (!user.google_id) {
+        await pool.query(`UPDATE users SET google_id = ? WHERE id = ?`, [google_id, user.id]);
+      }
+    } else {
+      // Create new user. Append a random suffix if username exists
+      let username = name || email.split('@')[0];
+      let [existingUser] = await pool.query(`SELECT id FROM users WHERE username = ?`, [username]);
+      if (existingUser.length > 0) {
+        username = username + '_' + Math.floor(Math.random() * 10000);
+      }
+      
+      const [result] = await pool.query(
+        `INSERT INTO users (username, email, password_hash, google_id, profile_picture) VALUES (?, ?, ?, ?, ?)`,
+        [username, email, null, google_id, picture]
+      );
+      user = { id: result.insertId, username: username, profile_picture: picture, is_admin: 0 };
+    }
+
+    const appToken = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ message: 'Google Login successful', token: appToken, user: { id: user.id, username: user.username, profile_picture: user.profile_picture, is_admin: user.is_admin } });
+  } catch (err) {
+    console.error('Google Auth Error:', err);
+    res.status(500).json({ error: 'Google Auth failed' });
+  }
+});
+
 
 app.post('/api/auth/logout', (req, res) => {
   res.json({ message: 'Logged out' });

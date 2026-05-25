@@ -77,7 +77,7 @@ export default function AdminUsersTab() {
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden border border-gray-200 flex-shrink-0">
                         {u.profile_picture ? (
-                          <img src={`${API_URL.replace('/api', '')}${u.profile_picture}`} alt={u.username} className="w-full h-full object-cover" />
+                          <img src={u.profile_picture.startsWith('http') ? u.profile_picture : `${API_URL.replace('/api', '')}${u.profile_picture}`} alt={u.username} className="w-full h-full object-cover" />
                         ) : (
                           <UserIcon className="w-5 h-5 text-primary-600" />
                         )}

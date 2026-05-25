@@ -46,7 +46,7 @@ export default function Profile() {
       setProfile(profileData);
       setInitialProfile(profileData);
       if (data.profile_picture) {
-        setImagePreview(`${API_URL.replace('/api', '')}${data.profile_picture}`);
+        setImagePreview(data.profile_picture.startsWith('http') ? data.profile_picture : `${API_URL.replace('/api', '')}${data.profile_picture}`);
       }
     } catch (err) {
       console.error(err);

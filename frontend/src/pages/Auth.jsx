@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { HeartPulse, Heart, Users, Droplets, ArrowLeft, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function Auth() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { login, signup, user } = useAuth();
+  const { login, signup, googleLogin, user } = useAuth();
 
   // Derive active tab from the URL path
   const [isLogin, setIsLogin] = useState(location.pathname !== '/signup');
@@ -255,6 +256,33 @@ export default function Auth() {
                 : (isLogin ? 'Sign In' : 'Create Account')}
             </button>
           </form>
+
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
+              </div>
+            </div>
+            
+            <div className="mt-6 flex justify-center">
+              <GoogleLogin
+                onSuccess={async (credentialResponse) => {
+                  try {
+                    await googleLogin(credentialResponse.credential);
+                    navigate('/feed');
+                  } catch (err) {
+                    setError(err.response?.data?.error || 'Google authentication failed');
+                  }
+                }}
+                onError={() => {
+                  setError('Google Authentication Failed');
+                }}
+              />
+            </div>
+          </div>
 
           {/* Footer note */}
           {!isLogin && (
