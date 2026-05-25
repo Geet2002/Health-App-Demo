@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Trash2, Users } from 'lucide-react';
+import { Trash2, Edit2, Users, FileText, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../context/ConfirmContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 export default function AdminCommunitiesTab() {
+  const confirm = useConfirm();
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchCommunities();
@@ -25,7 +28,13 @@ export default function AdminCommunitiesTab() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this community permanently? All related posts and members will be lost.')) return;
+    const isConfirmed = await confirm({
+      title: 'Delete Community?',
+      message: 'Are you sure you want to delete this community permanently? All related posts and members will be lost.',
+      confirmText: 'Delete Community',
+      type: 'danger'
+    });
+    if (!isConfirmed) return;
     try {
       await axios.delete(`${API_URL}/admin/communities/${id}`);
       toast.success('Community deleted');
@@ -37,17 +46,35 @@ export default function AdminCommunitiesTab() {
 
   if (loading) return <div className="p-8 text-center text-gray-500">Loading communities...</div>;
 
+  const filteredCommunities = communities.filter(c => 
+    (c.name && c.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (c.description && c.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (c.creator_name && c.creator_name.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   return (
     <div>
-      <div className="mb-6 flex justify-between items-end">
+      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <h2 className="text-2xl font-bold text-gray-800">Community Moderation</h2>
-        <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full font-medium">
-          {communities.length} Communities
-        </span>
+        <div className="flex items-center space-x-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:min-w-[280px]">
+            <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input 
+              type="text"
+              placeholder="Search by name, description or creator..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm"
+            />
+          </div>
+          <span className="text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded-xl font-medium whitespace-nowrap hidden sm:block">
+            {filteredCommunities.length} Communities
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {communities.map(community => (
+        {filteredCommunities.map(community => (
           <div key={community.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:border-gray-300 transition-colors flex flex-col h-full">
             <div className="flex justify-between items-start mb-3">
               <h3 className="font-bold text-lg text-gray-900 truncate pr-4">{community.name}</h3>
@@ -77,7 +104,7 @@ export default function AdminCommunitiesTab() {
             </div>
           </div>
         ))}
-        {communities.length === 0 && (
+        {filteredCommunities.length === 0 && (
           <div className="col-span-1 md:col-span-2 bg-white p-8 rounded-2xl border border-gray-200 text-center text-gray-500">
             No communities found.
           </div>

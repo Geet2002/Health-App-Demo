@@ -57,8 +57,8 @@ export default function PostCard({ post, currentUser, onDelete, onVote, hideComm
 
   useEffect(() => {
     setHasVoted(post.user_vote === 'upvote' || post.user_vote === 'like');
-    setVotes(post.upvotes || 0);
-  }, [post.user_vote, post.upvotes]);
+    setVotes(post.vote_count || 0);
+  }, [post.user_vote, post.vote_count]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {

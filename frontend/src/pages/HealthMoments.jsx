@@ -209,16 +209,16 @@ export default function HealthMoments() {
 
       {/* Create Post Form */}
       {!user?.is_admin && (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <form onSubmit={handlePost}>
-          <div className="flex space-x-4">
-            <div className="w-10 h-10">
-              <Avatar src={user?.profile_picture} name={user?.username} size="w-10 h-10" />
+          <div className="flex space-x-3">
+            <div className="w-9 h-9">
+              <Avatar src={user?.profile_picture} name={user?.username} size="w-9 h-9" />
             </div>
             <div className="flex-1">
               <textarea 
-                className="w-full bg-transparent resize-none border-none focus:ring-0 text-lg placeholder-gray-400 p-2"
-                rows="2"
+                className="w-full bg-transparent resize-none border-none focus:ring-0 text-base placeholder-gray-400 p-1 mt-1"
+                rows="1"
                 placeholder="Share your health moment..."
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
@@ -241,9 +241,9 @@ export default function HealthMoments() {
                 </div>
               )}
 
-              <div className="mt-4 pt-4 border-t border-gray-50 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0">
-                <div className="flex space-x-2 text-primary-600 items-center w-full sm:w-auto">
-                  <button type="button" onClick={() => fileInputRef.current.click()} className="p-2 hover:bg-primary-50 rounded-full transition tooltip-trigger">
+              <div className="mt-2 pt-2 border-t border-gray-50 flex flex-col sm:flex-row items-center justify-between space-y-3 sm:space-y-0">
+                <div className="flex space-x-1 text-primary-600 items-center w-full sm:w-auto">
+                  <button type="button" onClick={() => fileInputRef.current.click()} className="p-1.5 hover:bg-primary-50 rounded-full transition tooltip-trigger">
                     <ImageIcon className="w-5 h-5" />
                   </button>
                   <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
@@ -251,7 +251,7 @@ export default function HealthMoments() {
                   <button 
                     type="button" 
                     onClick={isListening ? stopListening : startListening} 
-                    className={`p-2 rounded-full transition ${isListening || isTranscribing ? 'bg-red-100 text-red-600 animate-pulse' : 'hover:bg-primary-50'}`}
+                    className={`p-1.5 rounded-full transition ${isListening || isTranscribing ? 'bg-red-100 text-red-600 animate-pulse' : 'hover:bg-primary-50'}`}
                   >
                     <Mic className="w-5 h-5" />
                   </button>
@@ -271,7 +271,7 @@ export default function HealthMoments() {
                 <button 
                   type="submit" 
                   disabled={isPosting || isListening || isTranscribing || (!content.trim() && !mediaFile)}
-                  className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-full font-bold shadow-sm transition-colors disabled:opacity-50 w-full sm:w-auto"
+                  className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-1.5 text-sm rounded-full font-bold shadow-sm transition-colors disabled:opacity-50 w-full sm:w-auto"
                 >
                   {isPosting ? 'Posting...' : isTranscribing ? 'Transcribing...' : isListening ? 'Listening...' : 'Share'}
                 </button>

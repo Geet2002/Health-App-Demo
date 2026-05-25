@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Trash2, Shield, User as UserIcon } from 'lucide-react';
+import { Trash2, Shield, User as UserIcon, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
+import Avatar from '../Avatar';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 export default function AdminUsersTab() {
   const { user: currentUser } = useAuth();
+  const confirm = useConfirm();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchUsers();
@@ -27,7 +31,13 @@ export default function AdminUsersTab() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this user? All their data will be lost.')) return;
+    const isConfirmed = await confirm({
+      title: 'Delete User?',
+      message: 'Are you sure you want to delete this user? All their data will be lost.',
+      confirmText: 'Delete User',
+      type: 'danger'
+    });
+    if (!isConfirmed) return;
     try {
       await axios.delete(`${API_URL}/admin/users/${id}`);
       toast.success('User deleted');
@@ -38,7 +48,13 @@ export default function AdminUsersTab() {
   };
 
   const handlePromote = async (id) => {
-    if (!window.confirm('Promote this user to admin?')) return;
+    const isConfirmed = await confirm({
+      title: 'Promote User?',
+      message: 'Are you sure you want to promote this user to admin? They will have full access to the admin console.',
+      confirmText: 'Promote to Admin',
+      type: 'warning'
+    });
+    if (!isConfirmed) return;
     try {
       await axios.put(`${API_URL}/admin/users/${id}/promote`);
       toast.success('User promoted to admin');
@@ -50,13 +66,30 @@ export default function AdminUsersTab() {
 
   if (loading) return <div className="p-8 text-center text-gray-500">Loading users...</div>;
 
+  const filteredUsers = users.filter(u => 
+    u.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   return (
     <div>
-      <div className="mb-6 flex justify-between items-end">
+      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <h2 className="text-2xl font-bold text-gray-800">User Management</h2>
-        <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full font-medium">
-          {users.length} Users Total
-        </span>
+        <div className="flex items-center space-x-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:min-w-[280px]">
+            <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input 
+              type="text"
+              placeholder="Search by username or email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm"
+            />
+          </div>
+          <span className="text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded-xl font-medium whitespace-nowrap hidden sm:block">
+            {filteredUsers.length} Users
+          </span>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
@@ -71,16 +104,12 @@ export default function AdminUsersTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {users.map(u => (
+              {filteredUsers.map(u => (
                 <tr key={u.id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="p-4">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden border border-gray-200 flex-shrink-0">
-                        {u.profile_picture ? (
-                          <img src={u.profile_picture.startsWith('http') ? u.profile_picture : `${API_URL.replace('/api', '')}${u.profile_picture}`} alt={u.username} className="w-full h-full object-cover" />
-                        ) : (
-                          <UserIcon className="w-5 h-5 text-primary-600" />
-                        )}
+                      <div className="w-10 h-10 flex-shrink-0">
+                        <Avatar src={u.profile_picture} name={u.username} size="w-10 h-10" />
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900 flex items-center space-x-2">
@@ -132,7 +161,7 @@ export default function AdminUsersTab() {
                   </td>
                 </tr>
               ))}
-              {users.length === 0 && (
+              {filteredUsers.length === 0 && (
                 <tr>
                   <td colSpan="4" className="p-8 text-center text-gray-500">No users found.</td>
                 </tr>

@@ -1141,11 +1141,13 @@ app.delete('/api/posts/:id', authenticate, async (req, res) => {
 app.delete('/api/comments/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const [comments] = await pool.query('SELECT author_id FROM comments WHERE id = ?', [id]);
+    const [comments] = await pool.query('SELECT author_id, post_id FROM comments WHERE id = ?', [id]);
     if (comments.length === 0) return res.status(404).json({ error: 'Not found' });
     if (comments[0].author_id !== req.user.id) return res.status(403).json({ error: 'Unauthorized' });
 
     await pool.query('DELETE FROM comments WHERE id = ?', [id]);
+    io.emit('post_updated', comments[0].post_id);
+    io.emit('comment_updated', id);
     res.json({ message: 'Comment deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

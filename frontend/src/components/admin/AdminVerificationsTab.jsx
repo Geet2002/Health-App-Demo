@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ShieldAlert, Check, X, User, ShieldMinus } from 'lucide-react';
+import { ShieldAlert, Check, X, User, ShieldMinus, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
+import Avatar from '../Avatar';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -11,6 +12,7 @@ export default function AdminVerificationsTab() {
   const [requests, setRequests] = useState([]);
   const [verifiedUsers, setVerifiedUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (activeSubTab === 'pending') {
@@ -89,6 +91,16 @@ export default function AdminVerificationsTab() {
     }
   };
 
+  const filteredRequests = requests.filter(req => 
+    (req.username && req.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (req.email && req.email.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const filteredVerifiedUsers = verifiedUsers.filter(user => 
+    (user.username && user.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   return (
     <div>
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
@@ -96,26 +108,38 @@ export default function AdminVerificationsTab() {
           <ShieldAlert className="w-6 h-6 mr-2 text-primary-600" />
           Medical Verifications
         </h2>
-        <div className="flex bg-gray-100 p-1 rounded-xl">
-          <button
-            onClick={() => setActiveSubTab('pending')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'pending' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Pending ({activeSubTab === 'pending' && !loading ? requests.length : '...'})
-          </button>
-          <button
-            onClick={() => setActiveSubTab('verified')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'verified' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Verified Users ({activeSubTab === 'verified' && !loading ? verifiedUsers.length : '...'})
-          </button>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64">
+            <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input 
+              type="text"
+              placeholder="Search users..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm"
+            />
+          </div>
+          <div className="flex bg-gray-100 p-1 rounded-xl shrink-0">
+            <button
+              onClick={() => setActiveSubTab('pending')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'pending' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Pending ({activeSubTab === 'pending' && !loading ? filteredRequests.length : '...'})
+            </button>
+            <button
+              onClick={() => setActiveSubTab('verified')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'verified' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Verified Users ({activeSubTab === 'verified' && !loading ? filteredVerifiedUsers.length : '...'})
+            </button>
+          </div>
         </div>
       </div>
 
       {loading ? (
         <div className="p-8 text-center text-gray-500">Loading data...</div>
       ) : activeSubTab === 'pending' ? (
-        requests.length === 0 ? (
+        filteredRequests.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-sm">
             <ShieldAlert className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-gray-800">All caught up!</h3>
@@ -123,15 +147,11 @@ export default function AdminVerificationsTab() {
           </div>
         ) : (
           <div className="grid gap-4">
-            {requests.map(req => (
+            {filteredRequests.map(req => (
               <div key={req.id} className="bg-white border border-gray-200 rounded-2xl p-5 flex items-center justify-between shadow-sm">
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden shrink-0">
-                    {req.profile_picture ? (
-                      <img src={req.profile_picture.startsWith('http') ? req.profile_picture : `${API_URL.replace('/api', '')}${req.profile_picture}`} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="w-6 h-6 text-primary-600" />
-                    )}
+                  <div className="w-12 h-12 flex-shrink-0">
+                    <Avatar src={req.profile_picture} name={req.username} size="w-12 h-12" />
                   </div>
                   <div>
                     <h4 className="font-bold text-gray-900">{req.username}</h4>
@@ -162,21 +182,17 @@ export default function AdminVerificationsTab() {
           </div>
         )
       ) : (
-        verifiedUsers.length === 0 ? (
+        filteredVerifiedUsers.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-sm">
             <h3 className="text-lg font-bold text-gray-800">No verified users yet.</h3>
           </div>
         ) : (
           <div className="grid gap-4">
-            {verifiedUsers.map(user => (
+            {filteredVerifiedUsers.map(user => (
               <div key={user.id} className="bg-white border border-gray-200 rounded-2xl p-5 flex items-center justify-between shadow-sm">
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 rounded-full bg-green-50 border border-green-100 flex items-center justify-center overflow-hidden shrink-0">
-                    {user.profile_picture ? (
-                      <img src={user.profile_picture.startsWith('http') ? user.profile_picture : `${API_URL.replace('/api', '')}${user.profile_picture}`} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="w-6 h-6 text-green-600" />
-                    )}
+                  <div className="w-12 h-12 flex-shrink-0">
+                    <Avatar src={user.profile_picture} name={user.username} size="w-12 h-12" />
                   </div>
                   <div>
                     <h4 className="font-bold text-gray-900">{user.username}</h4>

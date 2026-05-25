@@ -41,26 +41,23 @@ export function ConfirmProvider({ children }) {
     switch (modalState.type) {
       case 'danger':
         return {
-          stripe: 'bg-red-500',
-          iconBg: 'bg-red-50 text-red-600',
-          icon: <AlertTriangle className="w-6 h-6" />,
-          btnBg: 'bg-red-600 hover:bg-red-700 text-white shadow-sm shadow-red-100 hover:shadow-md'
+          iconBg: 'bg-red-50/50 text-red-500',
+          icon: <AlertTriangle className="w-5 h-5" />,
+          btnBg: 'bg-gray-900 hover:bg-gray-800 text-white shadow-sm ring-gray-900'
         };
       case 'success':
         return {
-          stripe: 'bg-emerald-500',
           iconBg: 'bg-emerald-50 text-emerald-600',
-          icon: <Check className="w-6 h-6" />,
-          btnBg: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-100 hover:shadow-md'
+          icon: <Check className="w-5 h-5" />,
+          btnBg: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
         };
       case 'info':
       case 'warning':
       default:
         return {
-          stripe: 'bg-primary-500',
           iconBg: 'bg-primary-50 text-primary-600',
-          icon: <Shield className="w-6 h-6" />,
-          btnBg: 'bg-primary-600 hover:bg-primary-700 text-white shadow-sm shadow-primary-100 hover:shadow-md'
+          icon: <Shield className="w-5 h-5" />,
+          btnBg: 'bg-primary-600 hover:bg-primary-700 text-white shadow-sm'
         };
     }
   };
@@ -71,50 +68,42 @@ export function ConfirmProvider({ children }) {
     <ConfirmContext.Provider value={confirm}>
       {children}
       {modalState.isOpen && createPortal(
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-gray-100 relative animate-scale-in">
-            {/* Intent stripe */}
-            <div className={`h-1.5 w-full ${theme.stripe}`} />
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-[400px] w-full shadow-xl border border-gray-100 relative animate-scale-in p-6">
+            <button 
+              onClick={() => handleClose(false)}
+              className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-full transition-colors focus:outline-none"
+            >
+              <X className="w-4 h-4" />
+            </button>
             
-            <div className="p-6 sm:p-8 space-y-6">
-              {/* Header */}
-              <div className="flex items-start space-x-3">
-                <div className={`p-2.5 rounded-2xl shrink-0 ${theme.iconBg}`}>
-                  {theme.icon}
-                </div>
-                <div className="flex-1 pr-6">
-                  <h3 className="text-xl font-bold text-gray-900 leading-snug">
-                    {modalState.title}
-                  </h3>
-                </div>
-                <button 
-                  onClick={() => handleClose(false)}
-                  className="absolute top-5 right-5 p-1.5 hover:bg-gray-100 rounded-full transition-colors focus:outline-none"
-                >
-                  <X className="w-4 h-4 text-gray-400" />
-                </button>
+            <div className="flex items-start gap-4 mb-6">
+              <div className={`p-2.5 rounded-full shrink-0 ${theme.iconBg}`}>
+                {theme.icon}
               </div>
-
-              {/* Message */}
-              <p className="text-sm text-gray-500 leading-relaxed">
-                {modalState.message}
-              </p>
-
-              {/* Actions */}
-              <div className="flex space-x-3 pt-2">
-                <button
-                  onClick={() => handleClose(false)}
-                  className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-250 text-gray-750 font-bold rounded-2xl text-sm transition-all border border-gray-200"
-                >
-                  {modalState.cancelText}
-                </button>
-                <button
-                  onClick={() => handleClose(true)}
-                  className={`flex-1 py-3 px-4 font-bold rounded-2xl text-sm transition-all ${theme.btnBg}`}
-                >
-                  {modalState.confirmText}
-                </button>
+              <div className="pt-0.5 flex-1 pr-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2 leading-tight">
+                  {modalState.title}
+                </h3>
+                <p className="text-sm text-gray-500 leading-relaxed">
+                  {modalState.message}
+                </p>
               </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => handleClose(false)}
+                className="px-4 py-2 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-lg text-sm transition-all border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-1"
+              >
+                {modalState.cancelText}
+              </button>
+              <button
+                onClick={() => handleClose(true)}
+                className={`px-4 py-2 font-medium rounded-lg text-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-opacity-50 ${theme.btnBg} ${modalState.type === 'danger' ? 'focus:ring-gray-900' : 'focus:ring-primary-500'}`}
+              >
+                {modalState.confirmText}
+              </button>
             </div>
           </div>
         </div>,

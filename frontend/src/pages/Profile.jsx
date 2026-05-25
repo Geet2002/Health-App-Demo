@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Camera, User as UserIcon, Calendar, Info, Users, ShieldCheck, BadgeCheck, ShieldMinus } from 'lucide-react';
+import { Camera, User as UserIcon, Calendar, Info, Users, ShieldCheck, BadgeCheck, ShieldMinus, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-
+import { useConfirm } from '../context/ConfirmContext';
 import toast from 'react-hot-toast';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 export default function Profile() {
+  const navigate = useNavigate();
   const { user, checkUser } = useAuth();
+  const confirm = useConfirm();
   const [profile, setProfile] = useState({
     birthdate: '',
     description: '',
@@ -25,6 +27,7 @@ export default function Profile() {
   
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
+  const [showCancelPrompt, setShowCancelPrompt] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -109,6 +112,17 @@ export default function Profile() {
     }
   };
 
+  const handleCancelRequest = async () => {
+    try {
+      await axios.post(`${API_URL}/users/me/verify-medical`, { is_medical_professional: false });
+      setProfile(p => ({ ...p, medical_verification_status: 'none' }));
+      setShowCancelPrompt(false);
+      toast.success('Verification Request Cancelled');
+    } catch (err) {
+      toast.error('Failed to cancel request');
+    }
+  };
+
   if (loading) return <div className="text-center py-12">Loading...</div>;
 
   return (
@@ -184,9 +198,26 @@ export default function Profile() {
               {profile.medical_verification_status === 'approved' ? (
                 <div className="flex flex-col sm:flex-row items-center gap-3">
                   <button 
-                    onClick={(e) => {
+                    type="button"
+                    onClick={async (e) => {
                       e.preventDefault();
-                      handleMedicalVerification(false);
+                      const isConfirmed = await confirm({
+                        title: 'Remove Verification?',
+                        message: 'Are you sure you want to remove your medical verification status?',
+                        confirmText: 'Remove',
+                        cancelText: 'Keep Status',
+                        type: 'danger'
+                      });
+                      
+                      if (isConfirmed) {
+                        try {
+                          await axios.post(`${API_URL}/users/me/verify-medical`, { is_medical_professional: false });
+                          setProfile(p => ({ ...p, is_medical_professional: false, medical_verification_status: 'none' }));
+                          toast.success('Verification removed');
+                        } catch (err) {
+                          toast.error('Failed to remove verification');
+                        }
+                      }
                     }}
                     className="px-4 py-2 bg-white text-gray-500 font-semibold rounded-full border border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 shadow-sm transition-all text-sm flex items-center"
                   >
@@ -195,15 +226,38 @@ export default function Profile() {
                   </button>
                 </div>
               ) : profile.medical_verification_status === 'pending' ? (
-                <span className="px-5 py-2.5 rounded-xl font-bold bg-yellow-100 text-yellow-700 border border-yellow-200 flex items-center">
-                  <div className="w-3 h-3 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin mr-2"></div>
-                  Pending...
-                </span>
+                showCancelPrompt ? (
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelRequest}
+                      className="px-3 py-1.5 text-sm rounded-full font-semibold transition-colors bg-red-500 text-white hover:bg-red-600 whitespace-nowrap"
+                    >
+                      Cancel Verification
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCancelPrompt(false)}
+                      className="px-3 py-1.5 text-sm rounded-full font-semibold transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    >
+                      Back
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    type="button"
+                    onClick={() => setShowCancelPrompt(true)}
+                    className="px-3 py-1.5 rounded-full font-bold bg-yellow-100 text-yellow-700 border border-yellow-200 flex items-center text-sm hover:bg-yellow-200 transition-colors cursor-pointer"
+                  >
+                    <Clock className="w-4 h-4 mr-1.5" />
+                    Pending
+                  </button>
+                )
               ) : (
               <button
                 type="button"
                 onClick={handleToggleMedical}
-                className="px-6 py-2.5 rounded-full font-semibold transition-colors bg-blue-500 text-white hover:bg-blue-600 whitespace-nowrap"
+                className="px-4 py-1.5 text-sm rounded-full font-semibold transition-colors bg-blue-500 text-white hover:bg-blue-600 whitespace-nowrap"
               >
                 Request Verification
               </button>
