@@ -4,7 +4,7 @@ export default function PageHeader({ title, description, icon: Icon, actionButto
   return (
     <div className="bg-white/85 backdrop-blur-md p-3.5 sm:p-5 rounded-2xl border border-gray-150 shadow-sm relative overflow-hidden mb-4 sm:mb-6">
       <div className={`absolute top-0 right-0 w-48 h-48 ${bgColor} rounded-full filter blur-3xl pointer-events-none`}></div>
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+      <div className="relative z-10 flex flex-row items-center sm:items-start justify-between gap-4">
         
         <div className="flex items-start">
           {Icon && (
@@ -25,7 +25,7 @@ export default function PageHeader({ title, description, icon: Icon, actionButto
         </div>
 
         {actionButton && (
-          <div className="shrink-0 flex items-center self-start sm:self-center">
+          <div className="shrink-0 flex items-center">
             {actionButton}
           </div>
         )}
