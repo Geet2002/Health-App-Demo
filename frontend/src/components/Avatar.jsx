@@ -11,7 +11,7 @@ export default function Avatar({ src, name, size = 'w-10 h-10', className = '', 
     <div className={`rounded-full overflow-hidden flex items-center justify-center bg-gray-200 text-gray-700 font-semibold ${size} ${className}`}>
       {imgSrc ? (
         // eslint-disable-next-line jsx-a11y/img-redundant-alt
-        <img src={imgSrc} alt={alt || name || 'Avatar'} className="w-full h-full object-cover" />
+        <img src={imgSrc} alt={alt || name || 'Avatar'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
       ) : (
         <span className="select-none">{initials}</span>
       )}

@@ -25,6 +25,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [stats, setStats] = useState({ posts_count: 0, upvotes_count: 0 });
   
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
@@ -51,6 +52,16 @@ export default function Profile() {
       setInitialProfile(profileData);
       if (data.profile_picture) {
         setImagePreview(data.profile_picture.startsWith('http') ? data.profile_picture : `${API_URL.replace('/api', '')}${data.profile_picture}`);
+      }
+      
+      // Fetch public stats for reputation
+      try {
+        const publicRes = await axios.get(`${API_URL}/users/${data.id}/public`);
+        if (publicRes.data?.stats) {
+          setStats(publicRes.data.stats);
+        }
+      } catch (err) {
+        console.error("Failed to fetch public stats", err);
       }
     } catch (err) {
       console.error(err);
@@ -136,48 +147,137 @@ export default function Profile() {
   if (loading) return <ProfileSkeleton />;
 
   return (
-    <div className="max-w-md mx-auto space-y-4 sm:space-y-6 animate-fade-in pb-32 px-4 pt-0 sm:pt-6 min-h-screen">
+    <div className="max-w-md md:max-w-4xl mx-auto space-y-4 sm:space-y-6 animate-fade-in pb-32 px-4 pt-0 sm:pt-6 min-h-screen">
       <div className="flex justify-start items-center mb-4 sm:mb-8 mt-0 sm:mt-2 ml-1">
         <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Profile</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+      <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-6 md:items-start">
+        <div className="w-full md:w-5/12 shrink-0">
         
         {message && (
-          <div className={`p-4 rounded-xl text-sm font-medium ${message.includes('success') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          <div className={`p-4 rounded-xl text-sm font-medium w-full md:w-full mb-6 ${message.includes('success') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
             {message}
           </div>
         )}
 
         {/* Top Profile Card */}
-        <div 
-          className="bg-white rounded-3xl p-5 flex items-center shadow-sm border border-gray-100 relative cursor-pointer group hover:shadow-md transition-all"
-          onClick={() => fileInputRef.current.click()}
-        >
-          <div className="relative shrink-0">
-             <div className="w-16 h-16 rounded-full overflow-hidden bg-primary-50 ring-2 ring-gray-100 group-hover:ring-primary-500 transition-all flex items-center justify-center">
-               {imagePreview ? (
-                 <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" />
-               ) : (
-                 <span className="text-2xl font-bold text-primary-500">{user?.username?.[0]?.toUpperCase()}</span>
-               )}
-             </div>
-             <div className="absolute bottom-0 right-0 bg-primary-600 p-1 rounded-full text-white shadow-sm border-2 border-white">
-               <Camera className="w-3 h-3" />
-             </div>
+        <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-gray-100 flex flex-col space-y-5 relative">
+          <div 
+            className="flex items-center cursor-pointer group"
+            onClick={() => fileInputRef.current.click()}
+          >
+            <div className="relative shrink-0">
+               <div className="w-16 h-16 rounded-full overflow-hidden bg-primary-50 ring-2 ring-primary-500 group-hover:ring-primary-600 transition-all flex items-center justify-center">
+                 {imagePreview ? (
+                   <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                 ) : (
+                   <span className="text-2xl font-bold text-primary-500">{user?.username?.[0]?.toUpperCase()}</span>
+                 )}
+               </div>
+               <div className="absolute bottom-0 right-0 bg-primary-600 p-1.5 rounded-full text-white shadow-sm border-2 border-white group-hover:scale-110 transition-transform">
+                 <Camera className="w-3 h-3" />
+               </div>
+            </div>
+            <div className="ml-4 overflow-hidden">
+              <h2 className="text-xl font-bold text-gray-900 truncate">{user?.username}</h2>
+              <p className="text-sm text-gray-500 truncate">{user?.email || 'No email provided'}</p>
+            </div>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="image/*" 
+              onChange={handleImageChange} 
+            />
           </div>
-          <div className="ml-4 overflow-hidden">
-            <h2 className="text-lg font-bold text-gray-900 truncate">{user?.username}</h2>
-            <p className="text-sm text-gray-500 truncate">{user?.email}</p>
+
+          <div className="border-t border-gray-100 pt-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest">Reputation Level</span>
+              <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-widest border border-emerald-100">
+                {(() => {
+                  const pts = (stats.posts_count * 10) + (stats.upvotes_count * 25);
+                  if (pts < 50) return 'Community Helper';
+                  if (pts < 200) return 'Health Advocate';
+                  return 'Life Saver';
+                })()}
+              </span>
+            </div>
+            <div className="space-y-2 mb-5">
+              <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                <div 
+                  className="bg-emerald-500 h-full rounded-full transition-all duration-1000 ease-out" 
+                  style={{ 
+                    width: `${(() => {
+                      const pts = (stats.posts_count * 10) + (stats.upvotes_count * 25);
+                      if (pts < 50) return (pts / 50) * 100;
+                      if (pts < 200) return ((pts - 50) / 150) * 100;
+                      return Math.min((pts / 500) * 100, 100);
+                    })()}%` 
+                  }}
+                ></div>
+              </div>
+              <div className="flex items-center justify-between text-xs font-bold text-gray-400">
+                <span>{(stats.posts_count * 10) + (stats.upvotes_count * 25)} Points</span>
+                <span>Next Level: {(() => {
+                  const pts = (stats.posts_count * 10) + (stats.upvotes_count * 25);
+                  if (pts < 50) return 50;
+                  if (pts < 200) return 200;
+                  return 500;
+                })()} pts</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="flex flex-col items-center justify-center p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                <span className="text-2xl font-black text-gray-900 mb-1">{stats.posts_count}</span>
+                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider text-center">Posts Shared</span>
+              </div>
+              <div className="flex flex-col items-center justify-center p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                <span className="text-2xl font-black text-emerald-600 mb-1">{stats.upvotes_count}</span>
+                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider text-center">Upvotes Gained</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {stats.posts_count > 0 && (
+                <span className="text-[10px] font-extrabold px-3 py-1 rounded-md uppercase tracking-wider border bg-emerald-50 text-emerald-600 border-emerald-200">
+                  Active Contributor
+                </span>
+              )}
+              {stats.upvotes_count > 0 && (
+                <span className="text-[10px] font-extrabold px-3 py-1 rounded-md uppercase tracking-wider border bg-amber-50 text-amber-700 border-amber-200">
+                  Highly Appreciated
+                </span>
+              )}
+            </div>
+            
+            <div className="pt-5 mt-5 space-y-2 border-t border-gray-100">
+              <button 
+                type="button"
+                onClick={() => {
+                  document.getElementById('settings-section')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="w-full flex items-center justify-between p-3.5 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors"
+              >
+                <span className="text-sm font-bold text-gray-700">Manage Profile Settings</span>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </button>
+              <Link 
+                to="/communities" 
+                className="w-full flex items-center justify-between p-3.5 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors"
+              >
+                <span className="text-sm font-bold text-gray-700">Explore Communities</span>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </Link>
+            </div>
           </div>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            className="hidden" 
-            accept="image/*" 
-            onChange={handleImageChange} 
-          />
         </div>
+        </div>
+        
+        <div className="w-full md:w-7/12 space-y-5 sm:space-y-6">
+        <div id="settings-section" className="pt-0 md:hidden"></div>
 
         {/* Verification Section */}
         {!user?.is_admin && (
@@ -348,6 +448,7 @@ export default function Profile() {
           >
              <LogOut className="w-4 h-4 mr-2" /> Log Out
           </button>
+        </div>
         </div>
 
       </form>

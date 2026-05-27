@@ -176,7 +176,7 @@ app.post('/api/auth/logout', (req, res) => {
 
 app.get('/api/auth/me', authenticate, async (req, res) => {
   try {
-    const [users] = await pool.query('SELECT id, username, profile_picture, is_admin, medical_verification_status FROM users WHERE id = ?', [req.user.id]);
+    const [users] = await pool.query('SELECT id, username, email, profile_picture, is_admin, medical_verification_status FROM users WHERE id = ?', [req.user.id]);
     if (users.length === 0) return res.status(401).json({ error: 'User not found' });
     res.json({ user: users[0] });
   } catch(e) {
@@ -189,7 +189,7 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
 app.get('/api/users/profile', authenticate, async (req, res) => {
   try {
     const [users] = await pool.query(
-      `SELECT id, username, created_at, birthdate, description, gender, profile_picture, is_medical_professional, medical_verification_status FROM users WHERE id = ?`, 
+      `SELECT id, username, email, created_at, birthdate, description, gender, profile_picture, is_medical_professional, medical_verification_status FROM users WHERE id = ?`, 
       [req.user.id]
     );
     if (users.length === 0) return res.status(404).json({ error: 'User not found' });
@@ -301,7 +301,7 @@ app.get('/api/posts', authenticate, async (req, res) => {
         p.type = 'emergency' DESC, 
         p.created_at DESC
       LIMIT ? OFFSET ?
-    `, [...queryParams, userId, limit + 1, offset]);
+    `, [userId, ...queryParams, limit + 1, offset]);
 
     const hasMore = rows.length > limit;
     const posts = hasMore ? rows.slice(0, limit) : rows;
@@ -337,6 +337,9 @@ app.post('/api/posts', authenticate, async (req, res) => {
           [m.user_id, `New post: ${title}`, result.insertId]
         );
       }
+      io.emit('community_feed_updated', { communityId: finalCommunityId, action: 'add', triggerUserId: req.user.id });
+    } else {
+      io.emit('global_feed_updated', { action: 'add', triggerUserId: req.user.id });
     }
 
     res.json({ id: result.insertId, title, content, type, location, author_id, community_id: finalCommunityId });
@@ -550,6 +553,20 @@ app.get('/api/communities/:id/posts', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = parseInt(req.query.offset) || 0;
+    const search = req.query.search || '';
+
+    let whereClause = `p.community_id = ?`;
+    let queryParams = [userId, id];
+
+    if (search) {
+      whereClause += ` AND p.content LIKE ?`;
+      queryParams.push(`%${search}%`);
+    }
+
+    queryParams.push(limit, offset);
+
     const [rows] = await pool.query(`
       SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional, c.name as community_name,
       (SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) as comment_count,
@@ -558,11 +575,12 @@ app.get('/api/communities/:id/posts', authenticate, async (req, res) => {
       FROM posts p
       LEFT JOIN users u ON p.author_id = u.id
       LEFT JOIN communities c ON p.community_id = c.id
-      WHERE p.community_id = ?
+      WHERE ${whereClause}
       ORDER BY 
         p.type = 'emergency' DESC, 
         p.created_at DESC
-    `, [userId, id]);
+      LIMIT ? OFFSET ?
+    `, queryParams);
     res.json(rows);
   } catch (error) {
     console.error(error);
@@ -577,10 +595,10 @@ app.post('/api/communities/:id/leave', authenticate, async (req, res) => {
     const user_id = req.user.id;
 
     // Check if the user is the creator
-    const [comms] = await pool.query(`SELECT creator_id FROM communities WHERE id = ?`, [id]);
+    const [comms] = await pool.query(`SELECT created_by FROM communities WHERE id = ?`, [id]);
     if (comms.length === 0) return res.status(404).json({ error: 'Community not found' });
     
-    if (comms[0].creator_id === user_id) {
+    if (comms[0].created_by === user_id) {
       return res.status(400).json({ error: 'Creator cannot leave the community. You must delete it instead.' });
     }
 
@@ -589,6 +607,7 @@ app.post('/api/communities/:id/leave', authenticate, async (req, res) => {
       [id, user_id]
     );
 
+    io.emit('community_member_updated', id);
     res.json({ message: 'Successfully left the community' });
   } catch (error) {
     console.error(error);
@@ -625,6 +644,7 @@ app.post('/api/communities/:id/join', authenticate, async (req, res) => {
       }
     }
 
+    io.emit('community_member_updated', id);
     res.json({ message: status === 'pending' ? 'Request sent to admins' : 'Joined successfully', status });
   } catch (error) {
     console.error(error);
@@ -654,9 +674,11 @@ app.post('/api/communities/:id/requests/:userId', authenticate, async (req, res)
         [userId, `Your request to join ${comms[0].name} was approved!`, id]
       );
 
+      io.emit('community_member_updated', id);
       res.json({ message: 'Request approved' });
     } else {
       await pool.query(`DELETE FROM community_members WHERE community_id = ? AND user_id = ?`, [id, userId]);
+      io.emit('community_member_updated', id);
       res.json({ message: 'Request rejected' });
     }
   } catch (error) {
@@ -684,7 +706,41 @@ app.post('/api/communities/:id/admin', authenticate, async (req, res) => {
       [targetUserId, `You were made an admin of ${comms[0].name}`, id]
     );
 
+    io.emit('community_member_updated', id);
     res.json({ message: 'User promoted to admin' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/communities/:id/members/:userId', authenticate, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const adminId = req.user.id;
+
+    // Check if the requester is an admin
+    const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND role = 'admin'`, [id, adminId]);
+    if (adminCheck.length === 0) return res.status(403).json({ error: 'Only admins can remove members' });
+
+    // Check target user role
+    const [targetCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ?`, [id, userId]);
+    if (targetCheck.length === 0) return res.status(404).json({ error: 'User is not a member of this community' });
+    if (targetCheck[0].role === 'admin') return res.status(400).json({ error: 'Cannot remove an admin' });
+
+    // Remove the user
+    await pool.query(`DELETE FROM community_members WHERE community_id = ? AND user_id = ?`, [id, userId]);
+
+    // Send notification
+    const [comms] = await pool.query(`SELECT name FROM communities WHERE id = ?`, [id]);
+    const communityName = comms[0]?.name || 'a community';
+    await pool.query(
+      `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'system', ?, ?)`,
+      [userId, `You have been removed from the community: ${communityName}`, id]
+    );
+
+    io.emit('community_member_updated', id);
+    res.json({ message: 'User removed successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
@@ -695,15 +751,30 @@ app.post('/api/communities/:id/admin', authenticate, async (req, res) => {
 app.get('/api/communities/:id/events', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = parseInt(req.query.offset) || 0;
+    const search = req.query.search || '';
+
+    let whereClause = `e.community_id = ?`;
+    let queryParams = [req.user.id, id];
+
+    if (search) {
+      whereClause += ` AND (e.title LIKE ? OR e.description LIKE ? OR e.location LIKE ?)`;
+      queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    queryParams.push(limit, offset);
+
     const [events] = await pool.query(`
       SELECT e.*, u.username as creator_name,
       (SELECT COUNT(*) FROM event_attendees ea WHERE ea.event_id = e.id) as attendee_count,
       (SELECT COUNT(*) FROM event_attendees ea WHERE ea.event_id = e.id AND ea.user_id = ?) as user_attending
       FROM community_events e
       JOIN users u ON e.created_by = u.id
-      WHERE e.community_id = ?
+      WHERE ${whereClause}
       ORDER BY e.event_date ASC
-    `, [req.user.id, id]);
+      LIMIT ? OFFSET ?
+    `, queryParams);
     res.json(events);
   } catch (error) {
     console.error(error);
@@ -716,9 +787,9 @@ app.post('/api/communities/:id/events', authenticate, async (req, res) => {
     const { id } = req.params;
     const { title, description, event_date, location } = req.body;
     
-    // Check if user is admin
-    const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
-    if (adminCheck.length === 0 || adminCheck[0].role !== 'admin') return res.status(403).json({ error: 'Only admins can create events' });
+    // Check if user is an approved member
+    const [memberCheck] = await pool.query(`SELECT status FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
+    if (memberCheck.length === 0) return res.status(403).json({ error: 'Only approved members can create events' });
 
     const [result] = await pool.query(
       `INSERT INTO community_events (community_id, created_by, title, description, event_date, location) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -743,7 +814,60 @@ app.post('/api/communities/:id/events', authenticate, async (req, res) => {
       console.error('Error dispatching community event notifications:', notifErr);
     }
 
+    io.emit('community_event_updated', { communityId: id, action: 'add', triggerUserId: req.user.id });
     res.json({ id: result.insertId, message: 'Event created successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/communities/:id/events/:eventId', authenticate, async (req, res) => {
+  try {
+    const { id, eventId } = req.params;
+    const { title, description, event_date, location } = req.body;
+    
+    const [eventRows] = await pool.query('SELECT created_by FROM community_events WHERE id = ? AND community_id = ?', [eventId, id]);
+    if (eventRows.length === 0) return res.status(404).json({ error: 'Event not found' });
+    const isCreator = eventRows[0].created_by === req.user.id;
+
+    // Check if user is admin
+    const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
+    const isAdmin = adminCheck.length > 0 && adminCheck[0].role === 'admin';
+
+    if (!isAdmin && !isCreator) return res.status(403).json({ error: 'Not authorized to edit this event' });
+
+    await pool.query(
+      `UPDATE community_events SET title = ?, description = ?, event_date = ?, location = ? WHERE id = ? AND community_id = ?`,
+      [title, description, event_date, location, eventId, id]
+    );
+
+    io.emit('community_event_updated', id);
+    res.json({ message: 'Event updated successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/communities/:id/events/:eventId', authenticate, async (req, res) => {
+  try {
+    const { id, eventId } = req.params;
+    
+    const [eventRows] = await pool.query('SELECT created_by FROM community_events WHERE id = ? AND community_id = ?', [eventId, id]);
+    if (eventRows.length === 0) return res.status(404).json({ error: 'Event not found' });
+    const isCreator = eventRows[0].created_by === req.user.id;
+
+    // Check if user is admin
+    const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
+    const isAdmin = adminCheck.length > 0 && adminCheck[0].role === 'admin';
+
+    if (!isAdmin && !isCreator) return res.status(403).json({ error: 'Not authorized to delete this event' });
+
+    await pool.query(`DELETE FROM community_events WHERE id = ? AND community_id = ?`, [eventId, id]);
+
+    io.emit('community_event_updated', id);
+    res.json({ message: 'Event deleted successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
@@ -754,6 +878,10 @@ app.post('/api/events/:eventId/rsvp', authenticate, async (req, res) => {
   try {
     const { eventId } = req.params;
     const { attending } = req.body;
+
+    const [eventData] = await pool.query(`SELECT community_id FROM community_events WHERE id = ?`, [eventId]);
+    if (eventData.length === 0) return res.status(404).json({ error: 'Event not found' });
+    const communityId = eventData[0].community_id;
 
     if (attending) {
       await pool.query(`INSERT IGNORE INTO event_attendees (event_id, user_id) VALUES (?, ?)`, [eventId, req.user.id]);
@@ -775,9 +903,11 @@ app.post('/api/events/:eventId/rsvp', authenticate, async (req, res) => {
         console.error('Error dispatching RSVP notification:', notifErr);
       }
 
+      io.emit('community_event_updated', communityId);
       res.json({ message: 'RSVP successful' });
     } else {
       await pool.query(`DELETE FROM event_attendees WHERE event_id = ? AND user_id = ?`, [eventId, req.user.id]);
+      io.emit('community_event_updated', communityId);
       res.json({ message: 'RSVP cancelled' });
     }
   } catch (error) {
@@ -807,14 +937,61 @@ app.get('/api/events/:eventId/attendees', authenticate, async (req, res) => {
 app.get('/api/communities/:id/resources', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = parseInt(req.query.offset) || 0;
+    const search = req.query.search || '';
+
+    let whereClause = `r.community_id = ?`;
+    let queryParams = [id];
+
+    if (search) {
+      whereClause += ` AND (r.title LIKE ? OR r.content LIKE ?)`;
+      queryParams.push(`%${search}%`, `%${search}%`);
+    }
+
+    queryParams.push(limit, offset);
+
     const [resources] = await pool.query(`
       SELECT r.*, u.username as creator_name
       FROM community_resources r
       JOIN users u ON r.created_by = u.id
-      WHERE r.community_id = ?
+      WHERE ${whereClause}
       ORDER BY r.created_at DESC
-    `, [id]);
+      LIMIT ? OFFSET ?
+    `, queryParams);
     res.json(resources);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/communities/:id/members', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = parseInt(req.query.offset) || 0;
+    const search = req.query.search || '';
+
+    let whereClause = `cm.community_id = ? AND cm.status = 'approved'`;
+    let queryParams = [id];
+
+    if (search) {
+      whereClause += ` AND u.username LIKE ?`;
+      queryParams.push(`%${search}%`);
+    }
+
+    queryParams.push(limit, offset);
+
+    const [members] = await pool.query(`
+      SELECT cm.user_id, cm.role, cm.status, u.username, u.profile_picture, u.is_medical_professional
+      FROM community_members cm
+      JOIN users u ON cm.user_id = u.id
+      WHERE ${whereClause}
+      ORDER BY cm.role = 'creator' DESC, cm.role = 'admin' DESC, u.username ASC
+      LIMIT ? OFFSET ?
+    `, queryParams);
+    res.json(members);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
@@ -826,9 +1003,9 @@ app.post('/api/communities/:id/resources', authenticate, async (req, res) => {
     const { id } = req.params;
     const { title, content, link } = req.body;
     
-    // Check if user is admin
-    const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
-    if (adminCheck.length === 0 || adminCheck[0].role !== 'admin') return res.status(403).json({ error: 'Only admins can add resources' });
+    // Check if user is an approved member
+    const [memberCheck] = await pool.query(`SELECT status FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
+    if (memberCheck.length === 0) return res.status(403).json({ error: 'Only approved members can add resources' });
 
     const [result] = await pool.query(
       `INSERT INTO community_resources (community_id, created_by, title, content, link) VALUES (?, ?, ?, ?, ?)`,
@@ -853,7 +1030,60 @@ app.post('/api/communities/:id/resources', authenticate, async (req, res) => {
       console.error('Error dispatching community resource notifications:', notifErr);
     }
 
+    io.emit('community_resource_updated', { communityId: id, action: 'add', triggerUserId: req.user.id });
     res.json({ id: result.insertId, message: 'Resource added successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/communities/:id/resources/:resourceId', authenticate, async (req, res) => {
+  try {
+    const { id, resourceId } = req.params;
+    const { title, content, link } = req.body;
+    
+    const [resRows] = await pool.query('SELECT created_by FROM community_resources WHERE id = ? AND community_id = ?', [resourceId, id]);
+    if (resRows.length === 0) return res.status(404).json({ error: 'Resource not found' });
+    const isCreator = resRows[0].created_by === req.user.id;
+
+    // Check if user is admin
+    const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
+    const isAdmin = adminCheck.length > 0 && adminCheck[0].role === 'admin';
+
+    if (!isAdmin && !isCreator) return res.status(403).json({ error: 'Not authorized to edit this resource' });
+
+    await pool.query(
+      `UPDATE community_resources SET title = ?, content = ?, link = ? WHERE id = ? AND community_id = ?`,
+      [title, content, link || null, resourceId, id]
+    );
+
+    io.emit('community_resource_updated', id);
+    res.json({ message: 'Resource updated successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/communities/:id/resources/:resourceId', authenticate, async (req, res) => {
+  try {
+    const { id, resourceId } = req.params;
+    
+    const [resRows] = await pool.query('SELECT created_by FROM community_resources WHERE id = ? AND community_id = ?', [resourceId, id]);
+    if (resRows.length === 0) return res.status(404).json({ error: 'Resource not found' });
+    const isCreator = resRows[0].created_by === req.user.id;
+
+    // Check if user is admin
+    const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
+    const isAdmin = adminCheck.length > 0 && adminCheck[0].role === 'admin';
+
+    if (!isAdmin && !isCreator) return res.status(403).json({ error: 'Not authorized to delete this resource' });
+
+    await pool.query(`DELETE FROM community_resources WHERE id = ? AND community_id = ?`, [resourceId, id]);
+
+    io.emit('community_resource_updated', id);
+    res.json({ message: 'Resource deleted successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
@@ -1148,11 +1378,14 @@ app.post('/api/speech/transcribe', authenticate, async (req, res) => {
 app.delete('/api/posts/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const [posts] = await pool.query('SELECT author_id FROM posts WHERE id = ?', [id]);
+    const [posts] = await pool.query('SELECT author_id, community_id FROM posts WHERE id = ?', [id]);
     if (posts.length === 0) return res.status(404).json({ error: 'Not found' });
     if (posts[0].author_id !== req.user.id) return res.status(403).json({ error: 'Unauthorized' });
 
     await pool.query('DELETE FROM posts WHERE id = ?', [id]);
+    if (posts[0].community_id) {
+      io.emit('community_feed_updated', posts[0].community_id);
+    }
     res.json({ message: 'Post deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -1229,15 +1462,35 @@ app.put('/api/communities/:id', authenticate, async (req, res) => {
 app.get('/api/health-shares', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = parseInt(req.query.offset) || 0;
+    const search = req.query.search || '';
+
+    let whereClause = '';
+    let queryParams = [userId];
+
+    if (search) {
+      whereClause = `WHERE hs.content LIKE ? OR u.username LIKE ?`;
+      queryParams.push(`%${search}%`, `%${search}%`);
+    }
+
+    queryParams.push(limit + 1, offset);
+
     const [rows] = await pool.query(`
       SELECT hs.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional,
       (SELECT COUNT(*) FROM health_share_comments hsc WHERE hsc.share_id = hs.id) as comment_count,
       (SELECT vote_type FROM health_share_votes hsv WHERE hsv.share_id = hs.id AND hsv.user_id = ?) as user_vote
       FROM health_shares hs
       JOIN users u ON hs.author_id = u.id
+      ${whereClause}
       ORDER BY hs.created_at DESC
-    `, [userId]);
-    res.json(rows);
+      LIMIT ? OFFSET ?
+    `, queryParams);
+
+    const hasMore = rows.length > limit;
+    const shares = hasMore ? rows.slice(0, limit) : rows;
+
+    res.json({ shares, hasMore });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
@@ -1263,6 +1516,8 @@ app.post('/api/health-shares', authenticate, upload.single('media'), async (req,
       `INSERT INTO health_shares (author_id, content, media_url, media_type) VALUES (?, ?, ?, ?)`,
       [author_id, content, media_url, media_type]
     );
+
+    io.emit('health_share_added', { action: 'add', triggerUserId: req.user.id });
 
     res.json({ id: result.insertId, message: 'Share posted successfully' });
   } catch (error) {

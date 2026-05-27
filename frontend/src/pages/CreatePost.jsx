@@ -9,13 +9,13 @@ import GoogleMap, { loadGoogleMaps } from '../components/GoogleMap';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 
-export default function CreatePost() {
+export default function CreatePost({ isModal, initialType, onClose, communityIdProp }) {
   const navigate = useNavigate();
   const loc = useLocation();
   const queryParams = new URLSearchParams(loc.search);
   const mapsApiKey = import.meta.env.VITE_MAPJS_AIP_KEY || import.meta.env.VITE_MAPS_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
-  const [type, setType] = useState(queryParams.get('type') || 'query');
+  const [type, setType] = useState(initialType || queryParams.get('type') || 'query');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [locationText, setLocationText] = useState('');
@@ -157,7 +157,7 @@ export default function CreatePost() {
     e.preventDefault();
     setLoading(true);
     try {
-      const communityId = queryParams.get('communityId') || import.meta.env.VITE_DEFAULT_COMMUNITY_ID;
+      const communityId = communityIdProp || queryParams.get('communityId') || import.meta.env.VITE_DEFAULT_COMMUNITY_ID;
       
       let finalLocation = null;
       if (type === 'emergency') {
@@ -171,7 +171,11 @@ export default function CreatePost() {
         location: finalLocation,
         community_id: communityId ? parseInt(communityId) : null
       });
-      navigate('/');
+      if (onClose) {
+        onClose(true); // pass true to indicate success
+      } else {
+        navigate('/');
+      }
     } catch (error) {
       console.error('Error creating post:', error);
       toast.error('Failed to post. Please try again.');
@@ -180,9 +184,22 @@ export default function CreatePost() {
     }
   };
 
+  const handleCancel = () => {
+    if (onClose) onClose();
+    else navigate(-1);
+  };
+
+  const wrapperClass = isModal
+    ? "fixed inset-0 z-[100] flex justify-center items-center p-4 sm:p-6 bg-gray-900/60 backdrop-blur-sm overflow-y-auto"
+    : "max-w-2xl mx-auto py-6 sm:py-8 animate-fade-in pb-32 px-4 sm:px-6";
+
+  const cardClass = isModal
+    ? "bg-white rounded-3xl shadow-2xl border border-gray-200 overflow-hidden relative w-full max-w-2xl my-auto animate-scale-up max-h-[90vh] overflow-y-auto"
+    : "bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden relative";
+
   return (
-    <div className="max-w-2xl mx-auto py-6 sm:py-8 animate-fade-in pb-32 px-4 sm:px-6">
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden relative">
+    <div className={wrapperClass}>
+      <div className={cardClass}>
         <div className="p-5 sm:p-8">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-6">
             {type === 'emergency' ? 'Report an Emergency' : 'Ask the Community'}
@@ -350,6 +367,13 @@ export default function CreatePost() {
                           if (!locationText) return setGeocodeError('Enter a location to find');
                           setGeocodeError('');
                           setGeocoding(true);
+                          
+                          if (!mapsApiKey) {
+                            setGeocodeError('Google Maps API key is missing.');
+                            setGeocoding(false);
+                            return;
+                          }
+
                           try {
                             const google = await loadGoogleMaps(mapsApiKey);
                             const geocoder = new google.maps.Geocoder();
@@ -361,27 +385,12 @@ export default function CreatePost() {
                                 setShowMap(true);
                                 setGeocoding(false);
                               } else {
-                                try {
-                                  const q = encodeURIComponent(locationText);
-                                  const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
-                                  const data = await res.json();
-                                  if (!data || data.length === 0) {
-                                    setGeocodeError('Location not found');
-                                  } else {
-                                    const lat = parseFloat(data[0].lat);
-                                    const lon = parseFloat(data[0].lon);
-                                    setPosition({ lat, lng: lon });
-                                    setShowMap(true);
-                                  }
-                                } catch (err) {
-                                  setGeocodeError('Location not found or geocoding failed');
-                                } finally {
-                                  setGeocoding(false);
-                                }
+                                setGeocodeError('Location not found.');
+                                setGeocoding(false);
                               }
                             });
                           } catch (err) {
-                            setGeocodeError('Failed to find location');
+                            setGeocodeError('Failed to load Google Maps or find location.');
                             setGeocoding(false);
                           }
                         }}
@@ -393,7 +402,7 @@ export default function CreatePost() {
                   </label>
                   <input
                     id="locationText"
-                    required
+                    required={type === 'emergency'}
                     type="text"
                     placeholder="e.g., Gauhati University"
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-primary-500 transition-colors bg-gray-50 focus:bg-white"
@@ -441,7 +450,7 @@ export default function CreatePost() {
             <div className="pt-4 sm:pt-6 border-t border-gray-100 flex justify-end items-center mt-2">
               <button
                 type="button"
-                onClick={() => navigate(-1)}
+                onClick={handleCancel}
                 className="px-4 py-2 sm:px-6 sm:py-2.5 text-sm font-bold text-gray-500 hover:text-gray-900 bg-transparent rounded-xl mr-2 sm:mr-3 transition-colors"
                 disabled={loading}
               >

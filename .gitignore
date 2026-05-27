@@ -12,6 +12,8 @@ frontend/node_modules/
 backend/uploads/
 backend/server.log
 
+test_posts.js
+
 # Build Outputs
 dist/
 dist-ssr/

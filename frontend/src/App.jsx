@@ -78,6 +78,7 @@ function App() {
       <AuthProvider>
         <Toaster 
           position="top-right" 
+          containerClassName="mobile-toast-container"
           toastOptions={{
             duration: 4000,
           }} 
@@ -105,24 +106,24 @@ function App() {
                 let title = isSuccess ? 'Success' : isError ? 'Error' : 'Notification';
                 
                 return (
-                  <div className="flex w-full bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] rounded-[20px] p-4 border border-gray-100 items-start relative overflow-hidden ring-1 ring-black/5">
+                  <div className="flex w-auto max-w-[90vw] sm:max-w-sm sm:w-full bg-white shadow-lg sm:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] rounded-xl sm:rounded-[20px] p-2 sm:p-4 border border-gray-100 items-center relative overflow-hidden ring-1 ring-black/5 ml-auto mr-2 sm:mx-0">
                     <div className="flex-shrink-0">
-                      <div className={`w-12 h-12 rounded-[14px] flex items-center justify-center ${bgClass}`}>
+                      <div className={`w-7 h-7 sm:w-12 sm:h-12 rounded-lg sm:rounded-[14px] flex items-center justify-center ${bgClass}`}>
                         {isSuccess ? (
-                          <CheckCircle2 className={`w-6 h-6 ${iconColorClass}`} />
+                          <CheckCircle2 className={`w-4 h-4 sm:w-6 sm:h-6 ${iconColorClass}`} />
                         ) : isError ? (
-                          <XCircle className={`w-6 h-6 ${iconColorClass}`} />
+                          <XCircle className={`w-4 h-4 sm:w-6 sm:h-6 ${iconColorClass}`} />
                         ) : (
-                          <AlertCircle className={`w-6 h-6 ${iconColorClass}`} />
+                          <AlertCircle className={`w-4 h-4 sm:w-6 sm:h-6 ${iconColorClass}`} />
                         )}
                       </div>
                     </div>
                     
-                    <div className="ml-4 flex-1 min-w-0 pr-6 min-h-[48px] flex flex-col justify-center">
-                      <p className="text-[15px] font-bold text-gray-900 truncate">
+                    <div className="ml-2.5 sm:ml-4 flex-1 min-w-0 pr-6 sm:min-h-[48px] flex flex-col justify-center text-left">
+                      <p className="text-xs sm:text-[15px] font-bold text-gray-900 truncate">
                         {title}
                       </p>
-                      <div className="mt-1 text-[14px] text-gray-500 font-medium leading-relaxed">
+                      <div className="mt-0.5 sm:mt-1 text-[11px] sm:text-[14px] text-gray-500 font-medium leading-tight sm:leading-relaxed truncate sm:whitespace-normal">
                         {message}
                       </div>
                     </div>
@@ -130,9 +131,9 @@ function App() {
                     {t.type !== 'loading' && (
                       <button 
                         onClick={() => toast.dismiss(t.id)} 
-                        className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100/50 rounded-full transition-colors focus:outline-none shrink-0"
+                        className="absolute top-1/2 -translate-y-1/2 right-1.5 sm:top-4 sm:-translate-y-0 sm:right-4 p-1 sm:p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100/50 rounded-full transition-colors focus:outline-none shrink-0"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-3 h-3 sm:w-4 sm:h-4" />
                       </button>
                     )}
                   </div>

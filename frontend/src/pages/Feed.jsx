@@ -14,6 +14,7 @@ import { socket } from '../socket';
 import PostCard from '../components/PostCard';
 import PageHeader from '../components/PageHeader';
 import { PostSkeleton } from '../components/Skeletons';
+import CreatePost from './CreatePost';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -59,6 +60,9 @@ export default function Feed() {
   const observer = useRef();
   const { user } = useAuth();
   const [userStats, setUserStats] = useState({ posts_count: 0, upvotes_count: 0 });
+  const [hasNewPosts, setHasNewPosts] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createModalType, setCreateModalType] = useState('query');
 
   const fetchUserStats = async () => {
     if (!user) return;
@@ -79,7 +83,30 @@ export default function Feed() {
     const interval = setInterval(() => {
       fetchUserStats();
     }, 15000);
-    return () => clearInterval(interval);
+
+    const handleGlobalFeedUpdate = (data) => {
+      if (data?.action === 'add' && data?.triggerUserId !== user?.id) {
+        setHasNewPosts(true);
+      } else {
+        // Fallback for generic updates
+        fetchPosts(0, false);
+      }
+    };
+    
+    const handlePostUpdate = () => {
+      fetchPosts(0, false);
+    };
+
+    socket.on('global_feed_updated', handleGlobalFeedUpdate);
+    socket.on('post_updated', handlePostUpdate);
+    socket.on('comment_updated', handlePostUpdate);
+
+    return () => {
+      clearInterval(interval);
+      socket.off('global_feed_updated', handleGlobalFeedUpdate);
+      socket.off('post_updated', handlePostUpdate);
+      socket.off('comment_updated', handlePostUpdate);
+    };
   }, [user]);
 
   // Reset feed when filters change
@@ -248,10 +275,10 @@ export default function Feed() {
       </div>
 
       {/* Main 2-Column Responsive Layout */}
-      <div className={`grid grid-cols-1 ${user?.is_admin ? '' : 'lg:grid-cols-3 lg:gap-8'}`}>
+      <div className={`grid grid-cols-1 ${user?.is_admin ? '' : 'md:grid-cols-3 md:gap-6 lg:gap-8'}`}>
         
         {/* Left Column (Main Feed) */}
-        <div className={`${user?.is_admin ? '' : 'lg:col-span-2'} space-y-6`}>
+        <div className={`${user?.is_admin ? '' : 'md:col-span-2'} space-y-6 relative`}>
           
           {/* Quick Post Creator Widget */}
           {user && !user.is_admin && (
@@ -266,21 +293,41 @@ export default function Feed() {
                 </div>
               </Link>
               
-              <Link 
-                to="/create?type=query" 
+              <button 
+                onClick={() => { setCreateModalType('query'); setShowCreateModal(true); }}
                 className="flex-1 bg-gray-50 hover:bg-gray-100/80 border border-gray-100 rounded-full px-4 py-2.5 text-xs sm:text-sm text-gray-400 font-medium transition-all text-left flex items-center min-w-0"
               >
                 <span className="truncate block w-full">What's on your mind, {user.username}? Ask a health query...</span>
-              </Link>
+              </button>
 
               <div className="flex items-center space-x-1.5">
-                <Link to="/create?type=emergency" className="flex items-center justify-center p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-all" title="Emergency Alert">
+                <button 
+                  onClick={() => { setCreateModalType('emergency'); setShowCreateModal(true); }} 
+                  className="flex items-center justify-center p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-all" 
+                  title="Emergency Alert"
+                >
                   <AlertTriangle className="w-4.5 h-4.5 sm:w-5 h-5 text-red-600" />
-                </Link>
-                <Link to="/create?type=query" className="flex items-center justify-center p-2.5 bg-primary-50 hover:bg-primary-100 text-primary-600 rounded-full transition-all" title="Ask Question">
+                </button>
+                <button 
+                  onClick={() => { setCreateModalType('query'); setShowCreateModal(true); }} 
+                  className="flex items-center justify-center p-2.5 bg-primary-50 hover:bg-primary-100 text-primary-600 rounded-full transition-all" 
+                  title="Ask Question"
+                >
                   <PlusCircle className="w-4.5 h-4.5 sm:w-5 h-5 text-primary-600" />
-                </Link>
+                </button>
               </div>
+            </div>
+          )}
+
+          {/* New Posts Bubble Below Search/Creator */}
+          {hasNewPosts && (
+            <div className="flex justify-center z-30 sticky top-24 -my-2 pointer-events-none">
+              <button 
+                onClick={() => { setHasNewPosts(false); fetchPosts(0, false); window.scrollTo({top: 0, behavior: 'smooth'}); }}
+                className="bg-primary-600 text-white px-4 py-1.5 rounded-full shadow-lg text-sm font-bold flex items-center animate-bounce hover:bg-primary-700 transition-colors pointer-events-auto"
+              >
+                ↑ New Posts
+              </button>
             </div>
           )}
 
@@ -330,9 +377,9 @@ export default function Feed() {
           )}
         </div>
 
-        {/* Right Column (Sidebar Widgets - Hidden on mobile/tablet) */}
+        {/* Right Column (Sidebar Widgets - Hidden on mobile) */}
         {!user?.is_admin && (
-          <div className="hidden lg:block lg:col-span-1 space-y-6">
+          <div className="hidden md:block md:col-span-1 space-y-6">
           
           {/* Widget 1: Quick Profile Stats (Reputation & Badge Upgrades) */}
           {user && (
@@ -497,6 +544,20 @@ export default function Feed() {
         )}
 
       </div>
+      
+      {showCreateModal && (
+        <CreatePost 
+          isModal={true} 
+          initialType={createModalType} 
+          onClose={(success) => {
+            setShowCreateModal(false);
+            if (success) {
+              setPage(0);
+              fetchPosts(0, false);
+            }
+          }} 
+        />
+      )}
     </div>
   );
 }

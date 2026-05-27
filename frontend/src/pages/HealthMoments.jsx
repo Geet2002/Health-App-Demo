@@ -1,7 +1,7 @@
 import toast from 'react-hot-toast';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import { Heart, ThumbsDown, MessageCircle, Share2, Image as ImageIcon, Video, Mic, Send, X, Trash2, ShieldCheck } from 'lucide-react';
+import { Heart, ThumbsDown, MessageCircle, Share2, Image as ImageIcon, Video, Mic, Send, X, Trash2, ShieldCheck, Search } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
@@ -20,6 +20,14 @@ export default function HealthMoments() {
   const [shares, setShares] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const [hasNewMoments, setHasNewMoments] = useState(false);
+
+  // Pagination & Search States
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const observer = useRef();
 
   // New Post State
   const [content, setContent] = useState('');
@@ -52,28 +60,70 @@ export default function HealthMoments() {
   const [newComment, setNewComment] = useState('');
 
   useEffect(() => {
-    fetchShares();
+    setPage(0);
+    setHasMore(true);
+    setShares([]);
+    fetchShares(0, false);
+  }, [searchQuery]);
 
+  useEffect(() => {
     const handleUpdate = () => {
-      axios.get(`${API_URL}/health-shares`)
-        .then(res => setShares(res.data))
-        .catch(err => console.error(err));
+      fetchShares(0, false);
+    };
+    
+    const handleAdd = (data) => {
+      if (data?.action === 'add' && data?.triggerUserId !== user?.id) {
+        setHasNewMoments(true);
+      } else {
+        fetchShares(0, false);
+      }
     };
 
     socket.on('health_share_updated', handleUpdate);
-    return () => socket.off('health_share_updated', handleUpdate);
-  }, []);
+    socket.on('health_share_added', handleAdd);
+    return () => {
+      socket.off('health_share_updated', handleUpdate);
+      socket.off('health_share_added', handleAdd);
+    };
+  }, [user]);
 
-  const fetchShares = async () => {
+  const fetchShares = async (pageNum = 0, isLoadMore = false) => {
+    if (!isLoadMore) setLoading(true);
+    else setLoadingMore(true);
+
     try {
-      const res = await axios.get(`${API_URL}/health-shares`);
-      setShares(res.data);
+      const limit = 10;
+      const offset = pageNum * limit;
+      const res = await axios.get(`${API_URL}/health-shares?limit=${limit}&offset=${offset}&search=${searchQuery}`);
+      
+      if (isLoadMore) {
+        setShares(prev => {
+          const newShares = res.data.shares.filter(ns => !prev.some(s => s.id === ns.id));
+          return [...prev, ...newShares];
+        });
+      } else {
+        setShares(res.data.shares);
+      }
+      setHasMore(res.data.hasMore);
+      setPage(pageNum);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!isLoadMore) setLoading(false);
+      else setLoadingMore(false);
     }
   };
+
+  const lastShareElementRef = useCallback(node => {
+    if (loading || loadingMore) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        fetchShares(page + 1, true);
+      }
+    });
+    if (node) observer.current.observe(node);
+  }, [loading, loadingMore, hasMore, page, searchQuery]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -224,7 +274,8 @@ export default function HealthMoments() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 animate-fade-in pb-12">
+    <div className="max-w-2xl mx-auto space-y-8 animate-fade-in pb-12 relative">
+      {/* Bubble moved below search bar */}
       
       <PageHeader 
         title={user?.is_admin ? 'Health Moments (Admin View)' : 'Health Moments'}
@@ -314,15 +365,43 @@ export default function HealthMoments() {
       </div>
       )}
 
+      {/* Search Bar */}
+      <div className="relative z-10">
+        <Search className="w-5 h-5 absolute left-4 top-3.5 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search moments by content or author..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none shadow-sm transition-all text-gray-700"
+        />
+      </div>
+
       {/* Feed */}
-      <div className="space-y-8">
+      <div className="space-y-8 relative">
+        {hasNewMoments && (
+          <div className="flex justify-center z-30 sticky top-24 -my-4 pointer-events-none">
+            <button 
+              onClick={() => { setHasNewMoments(false); fetchShares(); window.scrollTo({top: 0, behavior: 'smooth'}); }}
+              className="bg-primary-600 text-white px-4 py-1.5 rounded-full shadow-lg text-sm font-bold flex items-center animate-bounce hover:bg-primary-700 transition-colors pointer-events-auto"
+            >
+              ↑ New Moments
+            </button>
+          </div>
+        )}
         {shares.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-gray-300">
             <p className="text-gray-500">No moments shared yet. Be the first!</p>
           </div>
         ) : (
-          shares.map(share => (
-            <div key={share.id} className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          shares.map((share, index) => {
+            const isLastShare = index === shares.length - 1;
+            return (
+            <div 
+              key={share.id} 
+              ref={isLastShare ? lastShareElementRef : null}
+              className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
+            >
               {/* Header */}
               <div className="p-4 sm:p-6 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
@@ -468,7 +547,14 @@ export default function HealthMoments() {
                 </div>
               )}
             </div>
-          ))
+          );
+        })
+        )}
+        
+        {loadingMore && (
+          <div className="flex justify-center py-6">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          </div>
         )}
       </div>
 

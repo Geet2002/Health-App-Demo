@@ -31,6 +31,14 @@
   }
 }
 
+/* Override react-hot-toast mobile centering */
+@media (max-width: 640px) {
+  .mobile-toast-container > div {
+    justify-content: flex-end !important;
+    align-items: flex-end !important;
+  }
+}
+
 @keyframes marker-drop {
   0% { transform: translateY(-200px) scaleY(0.9); opacity: 0; }
   50% { transform: translateY(0px) scaleY(1); opacity: 1; }

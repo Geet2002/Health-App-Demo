@@ -2,18 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   HeartPulse, PlusCircle, AlertCircle, Home, User, 
-  LogOut, Users, Bell, Droplets, Image as ImageIcon, Shield
+  LogOut, Users, Bell, Droplets, Image as ImageIcon, Shield, AlertTriangle
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import CreatePost from '../pages/CreatePost';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, setIsOpen }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createModalType, setCreateModalType] = useState('query');
 
   useEffect(() => {
     let isMounted = true;
@@ -62,6 +65,7 @@ export default function Sidebar() {
   `;
 
   return (
+    <>
     <aside className="w-full sm:w-64 bg-white border-r border-gray-200 sm:h-screen sticky top-0 flex flex-col z-50">
       {/* Header/Logo */}
       <div className="p-4 sm:p-6 flex items-center justify-between sm:justify-start w-full gap-3">
@@ -153,15 +157,21 @@ export default function Sidebar() {
         {user ? (
           <div className="space-y-4">
             {!user.is_admin && (
-              <div className="space-y-2">
-                <Link to="/create?type=query" className="btn-primary w-full flex items-center justify-center space-x-2">
+              <div className="space-y-3 pt-2">
+                <button 
+                  onClick={() => { setCreateModalType('query'); setShowCreateModal(true); if (setIsOpen) setIsOpen(false); }} 
+                  className="btn-primary w-full flex items-center justify-center space-x-2"
+                >
                   <PlusCircle className="w-4 h-4" />
-                  <span>Ask Question</span>
-                </Link>
-                <Link to="/create?type=emergency" className="btn-emergency w-full flex items-center justify-center space-x-2">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>Emergency Alert</span>
-                </Link>
+                  <span>Ask a Query</span>
+                </button>
+                <button 
+                  onClick={() => { setCreateModalType('emergency'); setShowCreateModal(true); if (setIsOpen) setIsOpen(false); }} 
+                  className="btn-emergency w-full flex items-center justify-center space-x-2"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>Report Emergency</span>
+                </button>
               </div>
             )}
           
@@ -193,15 +203,31 @@ export default function Sidebar() {
 
       {/* Mobile Create Buttons (Floating) */}
       {user && !user.is_admin && (
-        <div className="sm:hidden fixed bottom-20 right-4 flex flex-col space-y-2 z-50">
-           <Link to="/create?type=emergency" className="bg-red-600 text-white p-3 rounded-full shadow-lg">
-             <AlertCircle className="w-6 h-6" />
-           </Link>
-           <Link to="/create?type=query" className="bg-primary-600 text-white p-3 rounded-full shadow-lg">
+        <div className="lg:hidden fixed bottom-24 right-4 sm:right-6 z-[60] flex flex-col space-y-3">
+           <button 
+             onClick={() => { setCreateModalType('emergency'); setShowCreateModal(true); }} 
+             className="bg-red-600 text-white p-3 rounded-full shadow-lg"
+           >
+             <AlertTriangle className="w-6 h-6" />
+           </button>
+           <button 
+             onClick={() => { setCreateModalType('query'); setShowCreateModal(true); }} 
+             className="bg-primary-600 text-white p-3 rounded-full shadow-lg"
+           >
              <PlusCircle className="w-6 h-6" />
-           </Link>
+           </button>
         </div>
       )}
+
+      {/* Global Create Post Modal */}
+      {showCreateModal && (
+        <CreatePost 
+          isModal={true} 
+          initialType={createModalType} 
+          onClose={() => setShowCreateModal(false)} 
+        />
+      )}
     </aside>
+    </>
   );
 }
