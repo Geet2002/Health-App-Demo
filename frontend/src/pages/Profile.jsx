@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Camera, User as UserIcon, Calendar, Info, Users, ShieldCheck, BadgeCheck, ShieldMinus, Clock, LogOut, ChevronRight } from 'lucide-react';
+import { Camera, User as UserIcon, Calendar, Info, Users, ShieldCheck, BadgeCheck, ShieldMinus, Clock, LogOut, ChevronRight, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
 import toast from 'react-hot-toast';
@@ -24,7 +24,6 @@ export default function Profile() {
   const [initialProfile, setInitialProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
   const [stats, setStats] = useState({ posts_count: 0, upvotes_count: 0 });
   
   const [imagePreview, setImagePreview] = useState(null);
@@ -81,7 +80,6 @@ export default function Profile() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setMessage('');
     
     const formData = new FormData();
     formData.append('birthdate', profile.birthdate);
@@ -95,7 +93,7 @@ export default function Profile() {
       await axios.put(`${API_URL}/users/profile`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      setMessage('Profile updated successfully!');
+      toast.success('Profile updated successfully!');
       
       // Update global auth state and local profile state without reloading the page
       await checkUser();
@@ -104,7 +102,7 @@ export default function Profile() {
       // Reset imageFile so the save button correctly disables if no other changes were made
       setImageFile(null);
     } catch (err) {
-      setMessage('Failed to update profile.');
+      toast.error('Failed to update profile.');
       console.error(err);
     } finally {
       setSaving(false);
@@ -144,22 +142,39 @@ export default function Profile() {
     }
   };
 
+  const hasFormChanged = () => {
+    if (!initialProfile) return false;
+    if (imageFile) return true;
+    return (
+      profile.birthdate !== initialProfile.birthdate ||
+      profile.description !== initialProfile.description ||
+      profile.gender !== initialProfile.gender
+    );
+  };
+
   if (loading) return <ProfileSkeleton />;
 
   return (
-    <div className="max-w-md md:max-w-4xl mx-auto space-y-4 sm:space-y-6 animate-fade-in pb-32 px-4 pt-0 sm:pt-6 min-h-screen">
-      <div className="flex justify-start items-center mb-4 sm:mb-8 mt-0 sm:mt-2 ml-1">
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Profile</h1>
+    <div className="max-w-md md:max-w-5xl lg:max-w-6xl mx-auto space-y-4 sm:space-y-6 animate-fade-in pb-32 px-4 pt-0 sm:pt-6 min-h-screen">
+      <div className="flex flex-row items-center justify-between gap-4 mb-4 sm:mb-8 mt-0 sm:mt-2">
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          <button onClick={() => navigate(-1)} className="p-2 sm:-ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-900" title="Go Back">
+             <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+          <div className="bg-primary-100 p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl shrink-0">
+            <UserIcon className="w-5 h-5 sm:w-8 sm:h-8 text-primary-600" />
+          </div>
+          <h1 className="text-xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Profile</h1>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-6 md:items-start">
-        <div className="w-full md:w-5/12 shrink-0">
+      <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-6 md:gap-10 md:items-start">
+        <div className="w-full md:w-5/12 lg:w-4/12 shrink-0 md:sticky md:top-24">
         
-        {message && (
-          <div className={`p-4 rounded-xl text-sm font-medium w-full md:w-full mb-6 ${message.includes('success') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-            {message}
-          </div>
-        )}
+        {/* Invisible spacer to align with right column's h3 heading */}
+        <h3 className="text-xs font-bold text-transparent uppercase tracking-wider mb-2 ml-2 hidden md:block select-none" aria-hidden="true">
+          Profile
+        </h3>
 
         {/* Top Profile Card */}
         <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-gray-100 flex flex-col space-y-5 relative">
@@ -276,7 +291,7 @@ export default function Profile() {
         </div>
         </div>
         
-        <div className="w-full md:w-7/12 space-y-5 sm:space-y-6">
+        <div className="w-full md:w-7/12 lg:w-8/12 space-y-5 sm:space-y-6">
         <div id="settings-section" className="pt-0 md:hidden"></div>
 
         {/* Verification Section */}
@@ -432,21 +447,21 @@ export default function Profile() {
         )}
 
         {/* Actions */}
-        <div className="pt-2 space-y-3 pb-8">
-          <button 
-            type="submit" 
-            disabled={saving || (initialProfile && JSON.stringify(profile) === JSON.stringify(initialProfile) && !imageFile)}
-            className="w-full bg-gray-900 hover:bg-black text-white font-bold py-3.5 rounded-2xl shadow-sm transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-          
+        <div className="pt-4 flex flex-col sm:flex-row gap-3 sm:gap-4 pb-8">
           <button 
             type="button" 
             onClick={handleLogout} 
-            className="w-full bg-white hover:bg-gray-50 text-red-600 font-bold py-3.5 rounded-2xl shadow-sm border border-gray-200 transition-colors flex justify-center items-center"
+            className="w-full sm:w-1/3 bg-white hover:bg-red-50 text-red-600 hover:border-red-200 font-bold py-3.5 rounded-2xl shadow-sm border border-gray-200 transition-all flex justify-center items-center order-2 sm:order-1"
           >
              <LogOut className="w-4 h-4 mr-2" /> Log Out
+          </button>
+          
+          <button 
+            type="submit" 
+            disabled={saving || !hasFormChanged()}
+            className="w-full sm:w-2/3 bg-primary-600 hover:bg-primary-700 text-white font-bold py-3.5 rounded-2xl shadow-sm transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed order-1 sm:order-2"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
         </div>
