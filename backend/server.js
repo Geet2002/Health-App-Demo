@@ -338,11 +338,44 @@ app.post('/api/posts', authenticate, async (req, res) => {
         );
       }
       io.emit('community_feed_updated', { communityId: finalCommunityId, action: 'add', triggerUserId: req.user.id });
-    } else {
-      io.emit('global_feed_updated', { action: 'add', triggerUserId: req.user.id });
     }
+    
+    // Always emit global feed update because community posts also show up in the global feed
+    io.emit('global_feed_updated', { action: 'add', triggerUserId: req.user.id });
 
     res.json({ id: result.insertId, title, content, type, location, author_id, community_id: finalCommunityId });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update Post
+app.put('/api/posts/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, content, type, location } = req.body;
+    
+    const [posts] = await pool.query('SELECT author_id, community_id FROM posts WHERE id = ?', [id]);
+    if (posts.length === 0) return res.status(404).json({ error: 'Not found' });
+    
+    // Only the creator can edit the post
+    if (posts[0].author_id !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized to edit this post' });
+    }
+
+    await pool.query(
+      'UPDATE posts SET title = ?, content = ?, type = ?, location = ? WHERE id = ?',
+      [title, content, type || 'query', location || null, id]
+    );
+
+    if (posts[0].community_id) {
+      io.emit('community_feed_updated', posts[0].community_id);
+    }
+    io.emit('global_feed_updated', { action: 'update', triggerUserId: req.user.id });
+    io.emit('post_updated', id);
+
+    res.json({ message: 'Post updated successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
@@ -833,13 +866,24 @@ app.put('/api/communities/:id/events/:eventId', authenticate, async (req, res) =
 
     // Check if user is admin
     const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
-    const isAdmin = adminCheck.length > 0 && adminCheck[0].role === 'admin';
+    let isAdmin = adminCheck.length > 0 && adminCheck[0].role === 'admin';
+    
+    if (!isAdmin) {
+      const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+      if (users[0]?.is_admin === 1) isAdmin = true;
+    }
 
     if (!isAdmin && !isCreator) return res.status(403).json({ error: 'Not authorized to edit this event' });
 
+    // Format event_date to standard MySQL format (YYYY-MM-DD HH:MM:SS) if it contains 'T'
+    let formattedDate = event_date;
+    if (formattedDate && formattedDate.includes('T')) {
+      formattedDate = new Date(formattedDate).toISOString().slice(0, 19).replace('T', ' ');
+    }
+
     await pool.query(
       `UPDATE community_events SET title = ?, description = ?, event_date = ?, location = ? WHERE id = ? AND community_id = ?`,
-      [title, description, event_date, location, eventId, id]
+      [title, description, formattedDate, location, eventId, id]
     );
 
     io.emit('community_event_updated', id);
@@ -854,17 +898,33 @@ app.delete('/api/communities/:id/events/:eventId', authenticate, async (req, res
   try {
     const { id, eventId } = req.params;
     
-    const [eventRows] = await pool.query('SELECT created_by FROM community_events WHERE id = ? AND community_id = ?', [eventId, id]);
+    const [eventRows] = await pool.query('SELECT created_by, title FROM community_events WHERE id = ? AND community_id = ?', [eventId, id]);
     if (eventRows.length === 0) return res.status(404).json({ error: 'Event not found' });
     const isCreator = eventRows[0].created_by === req.user.id;
 
     // Check if user is admin
     const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
-    const isAdmin = adminCheck.length > 0 && adminCheck[0].role === 'admin';
+    let isAdmin = adminCheck.length > 0 && adminCheck[0].role === 'admin';
+    
+    if (!isAdmin) {
+      const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+      if (users[0]?.is_admin === 1) isAdmin = true;
+    }
 
     if (!isAdmin && !isCreator) return res.status(403).json({ error: 'Not authorized to delete this event' });
 
+    const creatorId = eventRows[0].created_by;
+    const eventTitle = eventRows[0].title || 'your event';
+    
     await pool.query(`DELETE FROM community_events WHERE id = ? AND community_id = ?`, [eventId, id]);
+
+    // Notify creator if admin deleted it
+    if (creatorId !== req.user.id) {
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'system_delete', ?, NULL)`,
+        [creatorId, `An admin has deleted your event: "${eventTitle}"`]
+      );
+    }
 
     io.emit('community_event_updated', id);
     res.json({ message: 'Event deleted successfully' });
@@ -1049,7 +1109,12 @@ app.put('/api/communities/:id/resources/:resourceId', authenticate, async (req, 
 
     // Check if user is admin
     const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
-    const isAdmin = adminCheck.length > 0 && adminCheck[0].role === 'admin';
+    let isAdmin = adminCheck.length > 0 && adminCheck[0].role === 'admin';
+    
+    if (!isAdmin) {
+      const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+      if (users[0]?.is_admin === 1) isAdmin = true;
+    }
 
     if (!isAdmin && !isCreator) return res.status(403).json({ error: 'Not authorized to edit this resource' });
 
@@ -1070,17 +1135,33 @@ app.delete('/api/communities/:id/resources/:resourceId', authenticate, async (re
   try {
     const { id, resourceId } = req.params;
     
-    const [resRows] = await pool.query('SELECT created_by FROM community_resources WHERE id = ? AND community_id = ?', [resourceId, id]);
+    const [resRows] = await pool.query('SELECT created_by, title FROM community_resources WHERE id = ? AND community_id = ?', [resourceId, id]);
     if (resRows.length === 0) return res.status(404).json({ error: 'Resource not found' });
     const isCreator = resRows[0].created_by === req.user.id;
 
     // Check if user is admin
     const [adminCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
-    const isAdmin = adminCheck.length > 0 && adminCheck[0].role === 'admin';
+    let isAdmin = adminCheck.length > 0 && adminCheck[0].role === 'admin';
+    
+    if (!isAdmin) {
+      const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+      if (users[0]?.is_admin === 1) isAdmin = true;
+    }
 
     if (!isAdmin && !isCreator) return res.status(403).json({ error: 'Not authorized to delete this resource' });
 
+    const creatorId = resRows[0].created_by;
+    const resourceTitle = resRows[0].title || 'your resource';
+    
     await pool.query(`DELETE FROM community_resources WHERE id = ? AND community_id = ?`, [resourceId, id]);
+
+    // Notify creator if admin deleted it
+    if (creatorId !== req.user.id) {
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'system_delete', ?, NULL)`,
+        [creatorId, `An admin has deleted your resource: "${resourceTitle}"`]
+      );
+    }
 
     io.emit('community_resource_updated', id);
     res.json({ message: 'Resource deleted successfully' });
@@ -1378,11 +1459,36 @@ app.post('/api/speech/transcribe', authenticate, async (req, res) => {
 app.delete('/api/posts/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const [posts] = await pool.query('SELECT author_id, community_id FROM posts WHERE id = ?', [id]);
+    const [posts] = await pool.query('SELECT author_id, community_id, description FROM posts WHERE id = ?', [id]);
     if (posts.length === 0) return res.status(404).json({ error: 'Not found' });
-    if (posts[0].author_id !== req.user.id) return res.status(403).json({ error: 'Unauthorized' });
+    
+    let isAuthorized = posts[0].author_id === req.user.id;
+    if (!isAuthorized) {
+      const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+      if (users[0]?.is_admin === 1) isAuthorized = true;
+      
+      if (!isAuthorized && posts[0].community_id) {
+        const [adminCheck] = await pool.query('SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND role = "admin"', [posts[0].community_id, req.user.id]);
+        if (adminCheck.length > 0) isAuthorized = true;
+      }
+    }
 
+    if (!isAuthorized) return res.status(403).json({ error: 'Unauthorized' });
+
+    const creatorId = posts[0].author_id;
+    let postDesc = posts[0].description || 'your post';
+    if (postDesc.length > 30) postDesc = postDesc.substring(0, 30) + '...';
+    
     await pool.query('DELETE FROM posts WHERE id = ?', [id]);
+    
+    // Notify creator if admin deleted it
+    if (creatorId !== req.user.id) {
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'system_delete', ?, NULL)`,
+        [creatorId, `An admin has deleted your post: "${postDesc}"`]
+      );
+    }
+
     if (posts[0].community_id) {
       io.emit('community_feed_updated', posts[0].community_id);
     }
@@ -1395,9 +1501,21 @@ app.delete('/api/posts/:id', authenticate, async (req, res) => {
 app.delete('/api/comments/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const [comments] = await pool.query('SELECT author_id, post_id FROM comments WHERE id = ?', [id]);
+    const [comments] = await pool.query('SELECT c.author_id, c.post_id, p.community_id FROM comments c JOIN posts p ON c.post_id = p.id WHERE c.id = ?', [id]);
     if (comments.length === 0) return res.status(404).json({ error: 'Not found' });
-    if (comments[0].author_id !== req.user.id) return res.status(403).json({ error: 'Unauthorized' });
+    
+    let isAuthorized = comments[0].author_id === req.user.id;
+    if (!isAuthorized) {
+      const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+      if (users[0]?.is_admin === 1) isAuthorized = true;
+      
+      if (!isAuthorized && comments[0].community_id) {
+        const [adminCheck] = await pool.query('SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND role = "admin"', [comments[0].community_id, req.user.id]);
+        if (adminCheck.length > 0) isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) return res.status(403).json({ error: 'Unauthorized' });
 
     await pool.query('DELETE FROM comments WHERE id = ?', [id]);
     io.emit('post_updated', comments[0].post_id);

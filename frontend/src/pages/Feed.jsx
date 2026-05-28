@@ -63,6 +63,7 @@ export default function Feed() {
   const [hasNewPosts, setHasNewPosts] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createModalType, setCreateModalType] = useState('query');
+  const [editingPost, setEditingPost] = useState(null);
 
   const fetchUserStats = async () => {
     if (!user) return;
@@ -363,6 +364,7 @@ export default function Feed() {
                       post={post} 
                       currentUser={user} 
                       onDelete={handleDeletePost}
+                      onEdit={(p) => setEditingPost(p)}
                       onVote={fetchUserStats}
                     />
                   );
@@ -551,6 +553,20 @@ export default function Feed() {
           initialType={createModalType} 
           onClose={(success) => {
             setShowCreateModal(false);
+            if (success) {
+              setPage(0);
+              fetchPosts(0, false);
+            }
+          }} 
+        />
+      )}
+      
+      {editingPost && (
+        <CreatePost 
+          isModal={true} 
+          editingPost={editingPost}
+          onClose={(success) => {
+            setEditingPost(null);
             if (success) {
               setPage(0);
               fetchPosts(0, false);

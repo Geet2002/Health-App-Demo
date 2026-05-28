@@ -2,23 +2,23 @@ import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { AlertCircle, FileText, MapPin, Send, Map as MapIcon, Mic, Loader2, Locate } from 'lucide-react';
+import { AlertCircle, FileText, MapPin, Send, Map as MapIcon, Mic, Loader2, Locate, X } from 'lucide-react';
 import useSpeechToText from '../hooks/useSpeechToText';
 import GoogleMap, { loadGoogleMaps } from '../components/GoogleMap';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 
-export default function CreatePost({ isModal, initialType, onClose, communityIdProp }) {
+export default function CreatePost({ isModal, initialType, onClose, communityIdProp, editingPost }) {
   const navigate = useNavigate();
   const loc = useLocation();
   const queryParams = new URLSearchParams(loc.search);
   const mapsApiKey = import.meta.env.VITE_MAPJS_AIP_KEY || import.meta.env.VITE_MAPS_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
-  const [type, setType] = useState(initialType || queryParams.get('type') || 'query');
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [locationText, setLocationText] = useState('');
+  const [type, setType] = useState(editingPost?.type || initialType || queryParams.get('type') || 'query');
+  const [title, setTitle] = useState(editingPost?.title || '');
+  const [content, setContent] = useState(editingPost?.content || '');
+  const [locationText, setLocationText] = useState(editingPost?.location ? editingPost.location.split('||')[0] : '');
   const [position, setPosition] = useState(null);
   const [showMap, setShowMap] = useState(false);
   const [deviceLocation, setDeviceLocation] = useState(null);
@@ -84,6 +84,10 @@ export default function CreatePost({ isModal, initialType, onClose, communityIdP
 
   // Auto-focus location if it's an emergency
   useEffect(() => {
+    if (type === 'emergency' && !showMap) {
+      setShowMap(true);
+    }
+    
     if (type === 'emergency' && navigator.geolocation && !position) {
       navigator.geolocation.getCurrentPosition((pos) => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -109,7 +113,7 @@ export default function CreatePost({ isModal, initialType, onClose, communityIdP
         // user denied or error
       });
     }
-  }, [type, position]);
+  }, [type, position, showMap]);
 
   // Request browser geolocation to reset/refresh the map pin back to current coordinates
   const resetToCurrentLocation = () => {
@@ -164,13 +168,24 @@ export default function CreatePost({ isModal, initialType, onClose, communityIdP
          finalLocation = position ? `${locationText}||${position.lat},${position.lng}` : locationText;
       }
 
-      await axios.post(`${API_URL}/posts`, {
-        title,
-        content,
-        type,
-        location: finalLocation,
-        community_id: communityId ? parseInt(communityId) : null
-      });
+      if (editingPost) {
+        await axios.put(`${API_URL}/posts/${editingPost.id}`, {
+          title,
+          content,
+          type,
+          location: finalLocation
+        });
+        toast.success('Post updated successfully!');
+      } else {
+        await axios.post(`${API_URL}/posts`, {
+          title,
+          content,
+          type,
+          location: finalLocation,
+          community_id: communityId ? parseInt(communityId) : null
+        });
+        toast.success('Post created successfully!');
+      }
       if (onClose) {
         onClose(true); // pass true to indicate success
       } else {
@@ -189,6 +204,19 @@ export default function CreatePost({ isModal, initialType, onClose, communityIdP
     else navigate(-1);
   };
 
+  const handleBackdropClick = (e) => {
+    // Only trigger if clicking exactly on the backdrop wrapper, not its children
+    if (e.target === e.currentTarget && isModal) {
+      if (title.trim() || content.trim()) {
+        if (window.confirm("You have unsaved changes. Are you sure you want to discard them?")) {
+          handleCancel();
+        }
+      } else {
+        handleCancel();
+      }
+    }
+  };
+
   const wrapperClass = isModal
     ? "fixed inset-0 z-[100] flex justify-center items-center p-4 sm:p-6 bg-gray-900/60 backdrop-blur-sm overflow-y-auto"
     : "max-w-2xl mx-auto py-6 sm:py-8 animate-fade-in pb-32 px-4 sm:px-6";
@@ -198,12 +226,30 @@ export default function CreatePost({ isModal, initialType, onClose, communityIdP
     : "bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden relative";
 
   return (
-    <div className={wrapperClass}>
+    <div className={wrapperClass} onClick={handleBackdropClick}>
       <div className={cardClass}>
         <div className="p-5 sm:p-8">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-6">
-            {type === 'emergency' ? 'Report an Emergency' : 'Ask the Community'}
-          </h1>
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+                {editingPost ? 'Edit Post' : (type === 'emergency' ? 'Report Emergency' : 'Ask a Query')}
+              </h2>
+              <p className="text-sm sm:text-base text-gray-500 font-medium mt-1">
+                {editingPost ? 'Update your post details below' : (type === 'emergency' 
+                  ? 'Alert the community for immediate assistance' 
+                  : 'Share knowledge, ask questions, or connect with others')}
+              </p>
+            </div>
+            {isModal && onClose && (
+              <button 
+                type="button"
+                onClick={onClose} 
+                className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            )}
+          </div>
           
           <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
             <button
@@ -458,15 +504,23 @@ export default function CreatePost({ isModal, initialType, onClose, communityIdP
               </button>
               <button
                 type="submit"
-                disabled={loading}
-                className={`flex items-center px-6 py-2 sm:py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all whitespace-nowrap ${
-                  type === 'emergency' 
-                    ? 'bg-emergency-600 hover:bg-emergency-500 text-white focus:ring-emergency-500 focus:ring-offset-emergency-50 hover:shadow-md' 
-                    : 'bg-primary-600 hover:bg-primary-500 text-white focus:ring-primary-500 focus:ring-offset-primary-50 hover:shadow-md'
-                } focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed`}
+                disabled={loading || !title.trim() || !content.trim()}
+                className={`
+                  flex-1 py-3 px-6 rounded-2xl font-bold shadow-lg transition-all duration-200 flex justify-center items-center group
+                  ${!title.trim() || !content.trim() || loading
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
+                    : type === 'emergency'
+                      ? 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-500/30'
+                      : 'bg-primary-600 text-white hover:bg-primary-700 hover:shadow-primary-500/30'
+                  }
+                `}
               >
-                {loading ? 'Posting...' : 'Post'}
-                {!loading && <Send className="w-4 h-4 ml-1.5" />}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                  <>
+                    <Send className="w-5 h-5 mr-2 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                    {editingPost ? 'Update Post' : (type === 'emergency' ? 'Post Emergency Alert' : 'Post Query')}
+                  </>
+                )}
               </button>
             </div>
           </form>

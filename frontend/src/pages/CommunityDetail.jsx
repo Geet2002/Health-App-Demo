@@ -11,6 +11,7 @@ import MedicalBadge from '../components/MedicalBadge';
 import PostCard from '../components/PostCard';
 import { CommunityCardSkeleton } from '../components/Skeletons';
 import { socket } from '../socket';
+import CreatePost from './CreatePost';
 
 import { useConfirm } from '../context/ConfirmContext';
 
@@ -108,6 +109,7 @@ export default function CommunityDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '' });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
 
   // Active Event Details modal state
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -154,6 +156,10 @@ export default function CommunityDetail() {
   const [hasNewFeed, setHasNewFeed] = useState(false);
   const [hasNewEvents, setHasNewEvents] = useState(false);
   const [hasNewResources, setHasNewResources] = useState(false);
+
+  // Create Post Modal State
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createModalType, setCreateModalType] = useState('query');
 
   useEffect(() => {
     fetchDetail();
@@ -713,11 +719,14 @@ export default function CommunityDetail() {
                     className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-sm shadow-sm"
                   />
                 </div>
-                {hasAccess && (
-                  <Link to={`/communities/${id}/create-post`} className="btn-primary py-2 px-4 flex justify-center items-center text-sm shadow-sm">
+                {hasAccess && !comm.is_banned && (
+                  <button 
+                    onClick={() => { setCreateModalType('query'); setShowCreateModal(true); }}
+                    className="btn-primary py-2 px-4 flex justify-center items-center text-sm shadow-sm"
+                  >
                     <PlusCircle className="w-4 h-4 mr-1.5" />
                     Create Post
-                  </Link>
+                  </button>
                 )}
               </div>
               {posts.length === 0 && !feedPagination.loading ? (
@@ -733,8 +742,10 @@ export default function CommunityDetail() {
                       post={post} 
                       currentUser={user} 
                       onDelete={handleDeletePost} 
+                      onEdit={(p) => setEditingPost(p)}
                       onVote={feedPagination.fetchItems}
                       hideCommunityName={true}
+                      isCommunityAdmin={isAdmin}
                     />
                   ))}
                   {feedPagination.loadingMore && <div className="text-center py-4 text-gray-500 text-sm font-medium">Loading more posts...</div>}
@@ -1184,6 +1195,33 @@ export default function CommunityDetail() {
           </div>
         </div>,
         document.body
+      )}
+      {showCreateModal && (
+        <CreatePost 
+          isModal={true} 
+          initialType={createModalType} 
+          communityIdProp={id}
+          onClose={(success) => {
+            setShowCreateModal(false);
+            if (success === true) {
+              feedPagination.fetchItems(0, false);
+            }
+          }} 
+        />
+      )}
+      
+      {editingPost && (
+        <CreatePost 
+          isModal={true} 
+          editingPost={editingPost}
+          communityIdProp={id}
+          onClose={(success) => {
+            setEditingPost(null);
+            if (success === true) {
+              feedPagination.fetchItems(0, false);
+            }
+          }} 
+        />
       )}
     </div>
   );

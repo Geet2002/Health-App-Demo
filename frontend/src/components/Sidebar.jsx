@@ -18,6 +18,9 @@ export default function Sidebar({ isOpen, setIsOpen }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createModalType, setCreateModalType] = useState('query');
 
+  const communityMatch = location.pathname.match(/^\/communities\/(\d+)/);
+  const currentCommunityId = communityMatch ? communityMatch[1] : null;
+
   useEffect(() => {
     let isMounted = true;
     if (user) {
@@ -224,6 +227,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
         <CreatePost 
           isModal={true} 
           initialType={createModalType} 
+          communityIdProp={currentCommunityId}
           onClose={() => setShowCreateModal(false)} 
         />
       )}

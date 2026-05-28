@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   AlertTriangle, HelpCircle, MessageCircle, MapPin, Clock, 
-  Trash2, ThumbsUp, Share2, Copy, X
+  Trash2, ThumbsUp, Share2, Copy, X, Edit2
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -41,8 +41,9 @@ const cleanCoordinates = (str) => {
   return str;
 };
 
-export default function PostCard({ post, currentUser, onDelete, onVote, hideCommunityName = false }) {
+export default function PostCard({ post, currentUser, onDelete, onEdit, onVote, hideCommunityName = false, isCommunityAdmin = false }) {
   const isOwner = currentUser && post.author_id === currentUser.id;
+  const canDelete = isOwner || isCommunityAdmin || (currentUser && currentUser.is_admin === 1);
   const isEmergency = post.type === 'emergency';
 
   const [votes, setVotes] = useState(post.vote_count || 0);
@@ -211,7 +212,17 @@ export default function PostCard({ post, currentUser, onDelete, onVote, hideComm
                 {isEmergency ? 'Emergency' : 'Query'}
               </span>
 
-              {isOwner && (
+              {isOwner && onEdit && (
+                <button 
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(post); }} 
+                  className="p-2 text-gray-400 hover:bg-primary-50 hover:text-primary-600 rounded-full transition-all cursor-pointer" 
+                  title="Edit Post"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              )}
+
+              {canDelete && (
                 <button 
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete && onDelete(e, post.id); }} 
                   className="p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 rounded-full transition-all cursor-pointer" 
