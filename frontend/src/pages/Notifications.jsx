@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Bell, CheckSquare, MessageSquare, Users, Droplet, Info, Check, Circle, ExternalLink, Trash2, CheckCheck } from 'lucide-react';
+import { Bell, CheckSquare, MessageSquare, Users, Droplet, Info, Check, Circle, ExternalLink, Trash2, CheckCheck, ArrowLeft } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { NotificationSkeleton } from '../components/Skeletons';
 import { useAuth } from '../context/AuthContext';
 import { socket } from '../socket';
@@ -14,6 +14,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 export default function Notifications() {
   const { user } = useAuth();
   const confirm = useConfirm();
+  const navigate = useNavigate();
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all', 'unread'
@@ -106,6 +107,9 @@ export default function Notifications() {
       <div className="max-w-3xl mx-auto space-y-6 pb-32 px-4 sm:px-6 pt-0 sm:pt-8">
         <div className="flex flex-row items-center justify-between gap-4 mb-2 sm:mb-6 mt-2 sm:mt-0">
           <div className="flex items-center space-x-2 sm:space-x-3">
+            <button onClick={() => navigate(-1)} className="p-2 sm:-ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400">
+               <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
             <div className="bg-gray-100 rounded-xl sm:rounded-2xl shrink-0 w-8 h-8 sm:w-12 sm:h-12 animate-pulse"></div>
             <div className="h-6 sm:h-8 bg-gray-200 rounded w-48 animate-pulse"></div>
           </div>
@@ -121,6 +125,9 @@ export default function Notifications() {
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in pb-32 px-4 sm:px-6 pt-0 sm:pt-8">
       <div className="flex flex-row items-center justify-between gap-4 mb-2 sm:mb-6 mt-2 sm:mt-0">
         <div className="flex items-center space-x-2 sm:space-x-3">
+          <button onClick={() => navigate(-1)} className="p-2 sm:-ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-900" title="Go Back">
+             <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
           <div className="bg-primary-100 p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl shrink-0">
             <Bell className="w-5 h-5 sm:w-8 sm:h-8 text-primary-600" />
           </div>

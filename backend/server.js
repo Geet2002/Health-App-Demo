@@ -749,6 +749,36 @@ app.post('/api/communities/:id/admin', authenticate, async (req, res) => {
   }
 });
 
+app.post('/api/communities/:id/demote', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { targetUserId } = req.body;
+    const adminId = req.user.id;
+
+    const [community] = await pool.query(`SELECT created_by FROM communities WHERE id = ?`, [id]);
+    if (community.length === 0) return res.status(404).json({ error: 'Community not found' });
+    
+    if (community[0].created_by !== adminId) {
+      return res.status(403).json({ error: 'Only the creator can remove admin roles' });
+    }
+    
+    if (parseInt(targetUserId) === adminId) {
+      return res.status(400).json({ error: 'Cannot demote yourself' });
+    }
+
+    await pool.query(`UPDATE community_members SET role = 'member' WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, targetUserId]);
+
+    const [comms] = await pool.query(`SELECT name FROM communities WHERE id = ?`, [id]);
+    await createNotification(targetUserId, 'system', `Your admin role was removed in ${comms[0].name}`, id);
+
+    io.emit('community_member_updated', id);
+    res.json({ message: 'Admin role removed' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.delete('/api/communities/:id/members/:userId', authenticate, async (req, res) => {
   try {
     const { id, userId } = req.params;
@@ -761,7 +791,14 @@ app.delete('/api/communities/:id/members/:userId', authenticate, async (req, res
     // Check target user role
     const [targetCheck] = await pool.query(`SELECT role FROM community_members WHERE community_id = ? AND user_id = ?`, [id, userId]);
     if (targetCheck.length === 0) return res.status(404).json({ error: 'User is not a member of this community' });
-    if (targetCheck[0].role === 'admin') return res.status(400).json({ error: 'Cannot remove an admin' });
+    
+    const [community] = await pool.query(`SELECT created_by FROM communities WHERE id = ?`, [id]);
+    const isCreator = community[0].created_by === adminId;
+
+    if (targetCheck[0].role === 'admin') {
+      if (!isCreator) return res.status(403).json({ error: 'Only the creator can remove an admin' });
+      if (parseInt(userId) === adminId) return res.status(400).json({ error: 'Cannot remove yourself' });
+    }
 
     // Remove the user
     await pool.query(`DELETE FROM community_members WHERE community_id = ? AND user_id = ?`, [id, userId]);

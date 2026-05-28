@@ -258,8 +258,8 @@ export default function Feed() {
       <div className="flex items-center space-x-2 overflow-x-auto pb-2 pt-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth">
         {[
           { id: 'all', label: 'All Posts', icon: null },
-          { id: 'emergency', label: 'Emergencies', icon: Activity },
-          { id: 'query', label: 'Queries', icon: Stethoscope }
+          { id: 'emergency', label: 'Emergencies', icon: null },
+          { id: 'query', label: 'Queries', icon: null }
         ].map((cat) => {
           const Icon = cat.icon;
           const isActive = categoryFilter === cat.id;

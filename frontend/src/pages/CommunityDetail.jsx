@@ -180,7 +180,7 @@ export default function CommunityDetail() {
 
   useEffect(() => {
     const handleMemberUpdate = (updatedId) => {
-      if (updatedId === parseInt(id)) {
+      if (parseInt(updatedId) === parseInt(id)) {
         fetchDetail();
         membersPagination.fetchItems(0, false);
       }
@@ -373,6 +373,25 @@ export default function CommunityDetail() {
       fetchDetail();
     } catch (err) {
       toast.error('Error promoting to admin');
+    }
+  };
+
+  const demoteAdmin = async (targetUserId) => {
+    const ok = await confirm({
+      title: 'Remove Admin Role',
+      message: 'Are you sure you want to demote this user from admin? They will become a regular member.',
+      confirmText: 'Remove Admin Role',
+      confirmColor: 'bg-orange-600 hover:bg-orange-700 text-white shadow-sm hover:shadow-md',
+      type: 'warning'
+    });
+    if (!ok) return;
+
+    try {
+      await axios.post(`${API_URL}/communities/${id}/demote`, { targetUserId });
+      toast.success('Admin role removed!');
+      fetchDetail();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error demoting admin');
     }
   };
 
@@ -649,24 +668,7 @@ export default function CommunityDetail() {
         <span className="capitalize">{comm.is_private ? 'Private' : 'Public'}</span>
       </div>
 
-      {isAdmin && comm.is_private && pendingRequests.length > 0 && (
-        <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 shadow-sm">
-          <h2 className="text-sm font-bold flex items-center text-orange-800 mb-3">
-            <ShieldAlert className="mr-2 w-4 h-4"/> Pending Join Requests ({pendingRequests.length})
-          </h2>
-          <div className="space-y-2">
-            {pendingRequests.map(req => (
-              <div key={req.user_id} className="bg-white p-3 border border-orange-200/60 rounded-lg flex items-center justify-between">
-                <p className="font-medium text-gray-900 text-sm truncate pr-2">{req.username}</p>
-                <div className="flex space-x-2 shrink-0">
-                   <button onClick={() => handleRequest(req.user_id, 'reject')} className="px-3 py-1.5 bg-gray-100 hover:bg-red-100 hover:text-red-700 text-gray-600 rounded text-xs font-bold transition-colors">Reject</button>
-                   <button onClick={() => handleRequest(req.user_id, 'approve')} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-500 text-white rounded text-xs font-bold transition-colors shadow-sm">Approve</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {hasAccess ? (
         <>
@@ -687,6 +689,11 @@ export default function CommunityDetail() {
                 {tab === 'resources' && <BookOpen className="w-4 h-4 mr-2" />}
                 {tab === 'members' && <Users className="w-4 h-4 mr-2" />}
                 {tab}
+                {tab === 'members' && isAdmin && comm.is_private && pendingRequests.length > 0 && (
+                  <span className="ml-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {pendingRequests.length}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -983,6 +990,24 @@ export default function CommunityDetail() {
               {/* MEMBERS TAB */}
               {activeTab === 'members' && (
                 <div className="space-y-6 animate-fade-in">
+                  {isAdmin && comm.is_private && pendingRequests.length > 0 && (
+                    <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 shadow-sm">
+                      <h2 className="text-sm font-bold flex items-center text-orange-800 mb-3">
+                        <ShieldAlert className="mr-2 w-4 h-4"/> Pending Join Requests ({pendingRequests.length})
+                      </h2>
+                      <div className="space-y-2">
+                        {pendingRequests.map(req => (
+                          <div key={req.user_id} className="bg-white p-3 border border-orange-200/60 rounded-lg flex items-center justify-between">
+                            <p className="font-medium text-gray-900 text-sm truncate pr-2">{req.username}</p>
+                            <div className="flex space-x-2 shrink-0">
+                               <button onClick={() => handleRequest(req.user_id, 'reject')} className="px-3 py-1.5 bg-gray-100 hover:bg-red-100 hover:text-red-700 text-gray-600 rounded text-xs font-bold transition-colors">Reject</button>
+                               <button onClick={() => handleRequest(req.user_id, 'approve')} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-500 text-white rounded text-xs font-bold transition-colors shadow-sm">Approve</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                     <div className="relative flex-1 w-full">
                       <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
@@ -1018,16 +1043,30 @@ export default function CommunityDetail() {
                                 {m.role === 'admin' && <span className="text-[10px] font-bold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full border border-primary-200 mt-0.5 inline-block uppercase tracking-wider">Admin</span>}
                               </div>
                             </div>
-                            {isAdmin && m.role !== 'admin' && (
-                              <div className="flex items-center space-x-2 shrink-0 self-start sm:self-auto ml-14 sm:ml-0">
-                                <button onClick={() => makeAdmin(m.user_id)} className="text-xs font-bold text-gray-600 hover:text-white hover:bg-primary-600 border border-gray-200 hover:border-primary-600 rounded-lg px-3 py-1.5 transition-all shadow-sm">
-                                  Make Admin
-                                </button>
-                                <button onClick={() => removeMember(m.user_id, m.username)} className="text-xs font-bold text-red-600 hover:text-white hover:bg-red-600 border border-red-200 hover:border-red-600 rounded-lg px-3 py-1.5 transition-all shadow-sm">
-                                  Remove
-                                </button>
-                              </div>
-                            )}
+                            {(() => {
+                              const isCreator = user?.id === comm?.created_by;
+                              const isSelf = m.user_id === user?.id;
+                              
+                              if (!isAdmin || isSelf) return null;
+                              if (m.role === 'admin' && !isCreator) return null;
+                              
+                              return (
+                                <div className="flex items-center space-x-2 shrink-0 self-start sm:self-auto ml-14 sm:ml-0">
+                                  {m.role !== 'admin' ? (
+                                    <button onClick={() => makeAdmin(m.user_id)} className="text-xs font-bold text-gray-600 hover:text-white hover:bg-primary-600 border border-gray-200 hover:border-primary-600 rounded-lg px-3 py-1.5 transition-all shadow-sm">
+                                      Make Admin
+                                    </button>
+                                  ) : (
+                                    <button onClick={() => demoteAdmin(m.user_id)} className="text-xs font-bold text-orange-600 hover:text-white hover:bg-orange-500 border border-orange-200 hover:border-orange-500 rounded-lg px-3 py-1.5 transition-all shadow-sm">
+                                      Remove Admin
+                                    </button>
+                                  )}
+                                  <button onClick={() => removeMember(m.user_id, m.username)} className="text-xs font-bold text-red-600 hover:text-white hover:bg-red-600 border border-red-200 hover:border-red-600 rounded-lg px-3 py-1.5 transition-all shadow-sm">
+                                    Remove
+                                  </button>
+                                </div>
+                              );
+                            })()}
                           </li>
                         ))}
                       </ul>

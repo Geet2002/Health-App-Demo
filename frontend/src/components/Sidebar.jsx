@@ -81,7 +81,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
     }
   };
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   const navLinkClass = (path) => `
     flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors
