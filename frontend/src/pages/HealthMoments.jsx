@@ -1,7 +1,7 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import { Heart, ThumbsDown, MessageCircle, Share2, Image as ImageIcon, Video, Mic, Send, X, Trash2, ShieldCheck, Search } from 'lucide-react';
+import { Heart, ThumbsDown, MessageCircle, Share2, Image as ImageIcon, Video, Mic, Send, X, Trash2, Edit2, ShieldCheck, Search } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
@@ -12,6 +12,7 @@ import useSpeechToText from '../hooks/useSpeechToText';
 import { socket } from '../socket';
 import { MomentSkeleton } from '../components/Skeletons';
 import PageHeader from '../components/PageHeader';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -35,6 +36,15 @@ export default function HealthMoments() {
   const [mediaPreview, setMediaPreview] = useState(null);
   const [isPosting, setIsPosting] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Edit State
+  const [editingShareId, setEditingShareId] = useState(null);
+  const [editContent, setEditContent] = useState('');
+  const [editMediaFile, setEditMediaFile] = useState(null);
+  const [editMediaPreview, setEditMediaPreview] = useState(null);
+  const [editRemoveMedia, setEditRemoveMedia] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const editFileInputRef = useRef(null);
 
   const [speechLang, setSpeechLang] = useState('en-US');
   const {
@@ -67,15 +77,22 @@ export default function HealthMoments() {
   }, [searchQuery]);
 
   useEffect(() => {
-    const handleUpdate = () => {
-      fetchShares(0, false);
+    const handleUpdate = async (id) => {
+      if (typeof id === 'number' || typeof id === 'string') {
+        try {
+          const res = await axios.get(`${API_URL}/health-shares/${id}`);
+          setShares(prev => prev.map(s => s.id === Number(id) ? res.data : s));
+        } catch (err) {
+          console.error('Failed to update single share', err);
+        }
+      } else {
+        fetchShares(0, false, true);
+      }
     };
     
     const handleAdd = (data) => {
       if (data?.action === 'add' && data?.triggerUserId !== user?.id) {
         setHasNewMoments(true);
-      } else {
-        fetchShares(0, false);
       }
     };
 
@@ -87,9 +104,9 @@ export default function HealthMoments() {
     };
   }, [user]);
 
-  const fetchShares = async (pageNum = 0, isLoadMore = false) => {
-    if (!isLoadMore) setLoading(true);
-    else setLoadingMore(true);
+  const fetchShares = async (pageNum = 0, isLoadMore = false, silent = false) => {
+    if (isLoadMore) setLoadingMore(true);
+    else if (!silent) setLoading(true);
 
     try {
       const limit = 10;
@@ -109,8 +126,8 @@ export default function HealthMoments() {
     } catch (err) {
       console.error(err);
     } finally {
-      if (!isLoadMore) setLoading(false);
-      else setLoadingMore(false);
+      if (isLoadMore) setLoadingMore(false);
+      else if (!silent) setLoading(false);
     }
   };
 
@@ -139,6 +156,34 @@ export default function HealthMoments() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const clearEditMedia = () => {
+    setEditMediaFile(null);
+    setEditMediaPreview(null);
+    setEditRemoveMedia(true);
+    if (editFileInputRef.current) editFileInputRef.current.value = '';
+  };
+
+  const handleEditFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setEditMediaFile(file);
+      setEditMediaPreview(URL.createObjectURL(file));
+      setEditRemoveMedia(false);
+    }
+  };
+
+  const handleEditShare = (share) => {
+    setEditingShareId(share.id);
+    setEditContent(share.content || '');
+    if (share.media_url) {
+      setEditMediaPreview(`${API_URL.replace('/api', '')}${share.media_url}`);
+    } else {
+      setEditMediaPreview(null);
+    }
+    setEditMediaFile(null);
+    setEditRemoveMedia(false);
+  };
+
   const handlePost = async (e) => {
     e.preventDefault();
     if (!content.trim() && !mediaFile) return;
@@ -152,13 +197,39 @@ export default function HealthMoments() {
       await axios.post(`${API_URL}/health-shares`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
+      toast.success('Share posted');
       setContent('');
       clearMedia();
-      fetchShares();
+      setPage(0);
+      await fetchShares(0, false, true);
     } catch (err) {
       toast.error('Error posting share');
     } finally {
       setIsPosting(false);
+    }
+  };
+
+  const handleSaveEdit = async (shareId) => {
+    const share = shares.find(s => s.id === shareId);
+    if (!editContent.trim() && !editMediaFile && !(share.media_url && !editRemoveMedia)) return;
+
+    setIsSavingEdit(true);
+    const formData = new FormData();
+    formData.append('content', editContent);
+    if (editMediaFile) formData.append('media', editMediaFile);
+    if (editRemoveMedia) formData.append('remove_media', 'true');
+
+    try {
+      await axios.put(`${API_URL}/health-shares/${shareId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      toast.success('Share updated');
+      setEditingShareId(null);
+      fetchShares(0, false, true);
+    } catch (err) {
+      toast.error('Error updating share');
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -184,7 +255,6 @@ export default function HealthMoments() {
   const handleVote = async (id, voteType) => {
     try {
       await axios.post(`${API_URL}/health-shares/${id}/vote`, { vote_type: voteType });
-      fetchShares(); // Refresh to get updated counts and user_vote
     } catch (err) {
       console.error(err);
     }
@@ -213,8 +283,6 @@ export default function HealthMoments() {
       // Refresh comments for this post
       const res = await axios.get(`${API_URL}/health-shares/${shareId}/comments`);
       setComments({ ...comments, [shareId]: res.data });
-      // Refresh shares to update comment_count
-      fetchShares();
     } catch (err) {
       console.error(err);
     }
@@ -235,7 +303,6 @@ export default function HealthMoments() {
       // Refresh comments
       const res = await axios.get(`${API_URL}/health-shares/${shareId}/comments`);
       setComments({ ...comments, [shareId]: res.data });
-      fetchShares(); // Refresh shares to get updated comment count
       toast.success('Comment deleted successfully');
     } catch (err) {
       console.error(err);
@@ -274,26 +341,22 @@ export default function HealthMoments() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 animate-fade-in pb-12 relative">
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in pb-12 relative">
       {/* Bubble moved below search bar */}
       
       <PageHeader 
         title={user?.is_admin ? 'Health Moments (Admin View)' : 'Health Moments'}
         description={user?.is_admin ? 'Monitor public health moments and community updates.' : 'Share your journey, photos, and voice with the community.'}
         bgColor="bg-indigo-100/20"
-      />
-
-      {(user?.is_admin === 1 || user?.is_admin === true) ? (
-        <div className="flex items-center text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-6 shadow-sm">
-          <ShieldCheck className="w-6 h-6 mr-3" />
-          <span className="font-semibold text-sm">You are viewing the public feed with administrator privileges. You cannot create new moments.</span>
-        </div>
-      ) : null}
-
-      {/* Create Post Form */}
-      {!user?.is_admin && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <form onSubmit={handlePost}>
+      >
+        {(user?.is_admin === 1 || user?.is_admin === true) ? (
+          <div className="flex items-center text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 shadow-sm mt-4">
+            <ShieldCheck className="w-6 h-6 mr-3" />
+            <span className="font-semibold text-sm">You are viewing the public feed with administrator privileges. You cannot create new moments.</span>
+          </div>
+        ) : (
+          <div className="pt-2 mt-2 sm:pt-4 sm:mt-4 border-t border-gray-100/50">
+            <form onSubmit={handlePost}>
           <div className="flex space-x-3">
             <div className="w-9 h-9">
               <Avatar src={user?.profile_picture} name={user?.username} size="w-9 h-9" />
@@ -312,9 +375,9 @@ export default function HealthMoments() {
                   <button type="button" onClick={clearMedia} className="absolute top-2 right-2 p-1 bg-gray-900/50 text-white rounded-full hover:bg-gray-900 transition">
                     <X className="w-4 h-4" />
                   </button>
-                  {mediaFile.type.startsWith('image/') ? (
+                  { (mediaFile?.type?.startsWith('image/') || (!mediaFile && editingShare?.media_type === 'image')) ? (
                     <img src={mediaPreview} alt="Preview" className="max-h-64 object-contain" />
-                  ) : mediaFile.type.startsWith('video/') ? (
+                  ) : (mediaFile?.type?.startsWith('video/') || (!mediaFile && editingShare?.media_type === 'video')) ? (
                     <video src={mediaPreview} className="max-h-64 object-contain" />
                   ) : (
                     <div className="p-4 flex items-center text-primary-600 font-medium">
@@ -361,9 +424,10 @@ export default function HealthMoments() {
               </div>
             </div>
           </div>
-        </form>
-      </div>
-      )}
+            </form>
+          </div>
+        )}
+      </PageHeader>
 
       {/* Search Bar */}
       <div className="relative z-10">
@@ -382,7 +446,7 @@ export default function HealthMoments() {
         {hasNewMoments && (
           <div className="flex justify-center z-30 sticky top-24 -my-4 pointer-events-none">
             <button 
-              onClick={() => { setHasNewMoments(false); fetchShares(); window.scrollTo({top: 0, behavior: 'smooth'}); }}
+              onClick={() => { setHasNewMoments(false); fetchShares(0, false, true); window.scrollTo({top: 0, behavior: 'smooth'}); }}
               className="bg-primary-600 text-white px-4 py-1.5 rounded-full shadow-lg text-sm font-bold flex items-center animate-bounce hover:bg-primary-700 transition-colors pointer-events-auto"
             >
               ↑ New Moments
@@ -394,14 +458,21 @@ export default function HealthMoments() {
             <p className="text-gray-500">No moments shared yet. Be the first!</p>
           </div>
         ) : (
-          shares.map((share, index) => {
-            const isLastShare = index === shares.length - 1;
-            return (
-            <div 
-              key={share.id} 
-              ref={isLastShare ? lastShareElementRef : null}
-              className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
-            >
+          <motion.div layout="position" className="space-y-8 relative">
+            <AnimatePresence mode="popLayout" initial={false}>
+            {shares.map((share, index) => {
+              const isLastShare = index === shares.length - 1;
+              return (
+              <motion.div 
+                key={share.id} 
+                ref={isLastShare ? lastShareElementRef : null}
+                layout="position"
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, x: -20 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
+              >
               {/* Header */}
               <div className="p-4 sm:p-6 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
@@ -420,22 +491,82 @@ export default function HealthMoments() {
                     <p className="text-xs text-gray-500">{formatDistanceToNow(new Date(share.created_at))} ago</p>
                   </div>
                 </div>
-                {user && user.id === share.author_id && (
-                  <button onClick={() => handleDelete(share.id)} className="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                {(user && user.id === share.author_id) || user?.is_admin === 1 || user?.is_admin === true ? (
+                  <div className="flex space-x-1">
+                    <button onClick={() => handleEditShare(share)} className="text-gray-400 hover:text-primary-600 p-2 rounded-full hover:bg-primary-50 transition">
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(share.id)} className="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
-              {/* Content Text */}
-              {share.content && (
-                <div className="px-4 sm:px-6 pb-4 text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap">
-                  {share.content}
-                </div>
-              )}
+              {editingShareId === share.id ? (
+                <div className="px-4 sm:px-6 pb-4">
+                  <textarea 
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-[15px] focus:ring-2 focus:ring-primary-500 outline-none resize-y min-h-[100px]"
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    placeholder="Edit your health moment..."
+                  />
+                  
+                  {editMediaPreview && (
+                    <div className="relative mt-3 rounded-xl overflow-hidden bg-gray-100 inline-block max-w-full">
+                      <button type="button" onClick={clearEditMedia} className="absolute top-2 right-2 p-1.5 bg-gray-900/50 text-white rounded-full hover:bg-gray-900 transition">
+                        <X className="w-4 h-4" />
+                      </button>
+                      {(editMediaFile?.type?.startsWith('image/') || (!editMediaFile && share.media_type === 'image')) ? (
+                        <img src={editMediaPreview} alt="Preview" className="max-h-64 object-contain" />
+                      ) : (editMediaFile?.type?.startsWith('video/') || (!editMediaFile && share.media_type === 'video')) ? (
+                        <video src={editMediaPreview} className="max-h-64 object-contain" />
+                      ) : (
+                        <div className="p-4 flex items-center text-primary-600 font-medium">
+                          <Mic className="w-5 h-5 mr-2" /> Audio Attached
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-              {/* Media */}
-              {renderMedia(share)}
+                  <div className="flex items-center justify-between mt-3">
+                    <div className="flex items-center space-x-2">
+                      <button type="button" onClick={() => editFileInputRef.current.click()} className="p-2 text-primary-600 hover:bg-primary-50 rounded-full transition">
+                        <ImageIcon className="w-5 h-5" />
+                      </button>
+                      <input type="file" ref={editFileInputRef} onChange={handleEditFileChange} className="hidden" accept="image/*,video/*,audio/*" />
+                    </div>
+                    <div className="flex space-x-2">
+                      <button 
+                        type="button" 
+                        onClick={() => { setEditingShareId(null); clearEditMedia(); }}
+                        className="text-gray-500 hover:text-gray-700 px-4 py-1.5 text-sm font-bold transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={() => handleSaveEdit(share.id)}
+                        disabled={isSavingEdit || (!editContent.trim() && !editMediaFile && !(share.media_url && !editRemoveMedia))}
+                        className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-1.5 text-sm rounded-full font-bold shadow-sm transition-colors disabled:opacity-50"
+                      >
+                        {isSavingEdit ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Content Text */}
+                  {share.content && (
+                    <div className="px-4 sm:px-6 pb-4 text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap">
+                      {share.content}
+                    </div>
+                  )}
+
+                  {/* Media */}
+                  {renderMedia(share)}
+                </>
+              )}
 
               {/* Action Buttons */}
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-50 px-6 pb-4">
@@ -544,11 +675,13 @@ export default function HealthMoments() {
                       </button>
                     </form>
                   )}
-                </div>
-              )}
-            </div>
-          );
-        })
+                  </div>
+                )}
+              </motion.div>
+              );
+            })}
+            </AnimatePresence>
+          </motion.div>
         )}
         
         {loadingMore && (

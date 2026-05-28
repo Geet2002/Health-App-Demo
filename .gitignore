@@ -11,8 +11,14 @@ frontend/node_modules/
 
 backend/uploads/
 backend/server.log
+backend/server.log
+
 
 test_posts.js
+backend/test.js
+
+backend/add_blood_location.sql
+backend/alter_blood.js
 
 # Build Outputs
 dist/

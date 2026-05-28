@@ -78,6 +78,20 @@ const isAdmin = async (req, res, next) => {
   }
 };
 
+
+// ======================= NOTIFICATIONS HELPER =======================
+const createNotification = async (userId, type, content, relatedId = null) => {
+  try {
+    await pool.query(
+      `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, ?, ?, ?)`,
+      [userId, type, content, relatedId]
+    );
+    io.emit('new_notification', userId);
+  } catch (err) {
+    console.error('Error creating notification:', err);
+  }
+};
+
 // ======================= AUTH ROUTES =======================
 
 app.post('/api/auth/signup', async (req, res) => {
@@ -332,10 +346,7 @@ app.post('/api/posts', authenticate, async (req, res) => {
         [finalCommunityId, author_id]
       );
       for (let m of members) {
-        await pool.query(
-          `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'new_post', ?, ?)`,
-          [m.user_id, `New post: ${title}`, result.insertId]
-        );
+        await createNotification(m.user_id, 'new_post', `New post: ${title}`, result.insertId);
       }
       io.emit('community_feed_updated', { communityId: finalCommunityId, action: 'add', triggerUserId: req.user.id });
     }
@@ -669,10 +680,7 @@ app.post('/api/communities/:id/join', authenticate, async (req, res) => {
       const [admins] = await pool.query(`SELECT user_id FROM community_members WHERE community_id = ? AND role = 'admin'`, [id]);
       for (let admin of admins) {
         if (admin.user_id !== user_id) {
-          await pool.query(
-            `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'join_request', ?, ?)`,
-            [admin.user_id, `User ${req.user.username} requested to join ${comms[0].name}`, id]
-          );
+          await createNotification(admin.user_id, 'join_request', `User ${req.user.username} requested to join ${comms[0].name}`, id);
         }
       }
     }
@@ -702,10 +710,7 @@ app.post('/api/communities/:id/requests/:userId', authenticate, async (req, res)
       await pool.query(`UPDATE community_members SET status = 'approved' WHERE community_id = ? AND user_id = ?`, [id, userId]);
 
       const [comms] = await pool.query(`SELECT name FROM communities WHERE id = ?`, [id]);
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'request_approved', ?, ?)`,
-        [userId, `Your request to join ${comms[0].name} was approved!`, id]
-      );
+      await createNotification(userId, 'request_approved', `Your request to join ${comms[0].name} was approved!`, id);
 
       io.emit('community_member_updated', id);
       res.json({ message: 'Request approved' });
@@ -734,10 +739,7 @@ app.post('/api/communities/:id/admin', authenticate, async (req, res) => {
     await pool.query(`UPDATE community_members SET role = 'admin' WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, targetUserId]);
 
     const [comms] = await pool.query(`SELECT name FROM communities WHERE id = ?`, [id]);
-    await pool.query(
-      `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'made_admin', ?, ?)`,
-      [targetUserId, `You were made an admin of ${comms[0].name}`, id]
-    );
+    await createNotification(targetUserId, 'made_admin', `You were made an admin of ${comms[0].name}`, id);
 
     io.emit('community_member_updated', id);
     res.json({ message: 'User promoted to admin' });
@@ -767,10 +769,7 @@ app.delete('/api/communities/:id/members/:userId', authenticate, async (req, res
     // Send notification
     const [comms] = await pool.query(`SELECT name FROM communities WHERE id = ?`, [id]);
     const communityName = comms[0]?.name || 'a community';
-    await pool.query(
-      `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'system', ?, ?)`,
-      [userId, `You have been removed from the community: ${communityName}`, id]
-    );
+    await createNotification(userId, 'system', `You have been removed from the community: ${communityName}`, id);
 
     io.emit('community_member_updated', id);
     res.json({ message: 'User removed successfully' });
@@ -837,12 +836,9 @@ app.post('/api/communities/:id/events', authenticate, async (req, res) => {
         `SELECT user_id FROM community_members WHERE community_id = ? AND status = 'approved' AND user_id != ?`,
         [id, req.user.id]
       );
-      await Promise.all(members.map(m =>
-        pool.query(
-          `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'community_event', ?, ?)`,
-          [m.user_id, `New event scheduled in ${communityName}: "${title}"`, id]
-        )
-      ));
+      for (const m of members) {
+        await createNotification(m.user_id, 'community_event', `New event scheduled in ${communityName}: "${title}"`, id);
+      }
     } catch (notifErr) {
       console.error('Error dispatching community event notifications:', notifErr);
     }
@@ -920,10 +916,7 @@ app.delete('/api/communities/:id/events/:eventId', authenticate, async (req, res
 
     // Notify creator if admin deleted it
     if (creatorId !== req.user.id) {
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'system_delete', ?, NULL)`,
-        [creatorId, `An admin has deleted your event: "${eventTitle}"`]
-      );
+      await createNotification(creatorId, 'system_delete', `An admin has deleted your event: "${eventTitle}"`);
     }
 
     io.emit('community_event_updated', id);
@@ -954,10 +947,7 @@ app.post('/api/events/:eventId/rsvp', authenticate, async (req, res) => {
         );
         if (eventRows.length > 0 && eventRows[0].created_by !== req.user.id) {
           const event = eventRows[0];
-          await pool.query(
-            `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'event_rsvp', ?, ?)`,
-            [event.created_by, `${req.user.username} is attending your event "${event.title}" in ${event.community_name}`, event.community_id]
-          );
+          await createNotification(event.created_by, 'event_rsvp', `${req.user.username} is attending your event "${event.title}" in ${event.community_name}`, event.community_id);
         }
       } catch (notifErr) {
         console.error('Error dispatching RSVP notification:', notifErr);
@@ -1080,12 +1070,9 @@ app.post('/api/communities/:id/resources', authenticate, async (req, res) => {
         `SELECT user_id FROM community_members WHERE community_id = ? AND status = 'approved' AND user_id != ?`,
         [id, req.user.id]
       );
-      await Promise.all(members.map(m =>
-        pool.query(
-          `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'community_resource', ?, ?)`,
-          [m.user_id, `New resource shared in ${communityName}: "${title}"`, id]
-        )
-      ));
+      for (const m of members) {
+        await createNotification(m.user_id, 'community_resource', `New resource shared in ${communityName}: "${title}"`, id);
+      }
     } catch (notifErr) {
       console.error('Error dispatching community resource notifications:', notifErr);
     }
@@ -1157,10 +1144,7 @@ app.delete('/api/communities/:id/resources/:resourceId', authenticate, async (re
 
     // Notify creator if admin deleted it
     if (creatorId !== req.user.id) {
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'system_delete', ?, NULL)`,
-        [creatorId, `An admin has deleted your resource: "${resourceTitle}"`]
-      );
+      await createNotification(creatorId, 'system_delete', `An admin has deleted your resource: "${resourceTitle}"`);
     }
 
     io.emit('community_resource_updated', id);
@@ -1194,16 +1178,58 @@ app.put('/api/notifications/:id/read', authenticate, async (req, res) => {
   }
 });
 
+app.put('/api/notifications/read-all', authenticate, async (req, res) => {
+  try {
+    await pool.query(`UPDATE notifications SET is_read = TRUE WHERE user_id = ?`, [req.user.id]);
+    res.json({ message: 'All marked as read' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/notifications/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query(`DELETE FROM notifications WHERE id = ? AND user_id = ?`, [id, req.user.id]);
+    res.json({ message: 'Notification deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/notifications', authenticate, async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM notifications WHERE user_id = ?`, [req.user.id]);
+    res.json({ message: 'All notifications cleared' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ======================= BLOOD DONATION ROUTES =======================
 
 app.get('/api/blood-requests', authenticate, async (req, res) => {
   try {
-    const [rows] = await pool.query(`
+    const search = req.query.search || '';
+    let query = `
       SELECT b.*, u.username as requester_name 
       FROM blood_requests b 
       JOIN users u ON b.user_id = u.id 
-      ORDER BY FIELD(b.status, 'pending', 'fulfilled'), b.created_at DESC
-    `);
+    `;
+    let queryParams = [];
+
+    if (search) {
+      query += ` WHERE b.patient_name LIKE ? OR b.blood_group LIKE ? OR b.location LIKE ? `;
+      const searchStr = `%${search}%`;
+      queryParams.push(searchStr, searchStr, searchStr);
+    }
+
+    query += ` ORDER BY FIELD(b.status, 'pending', 'fulfilled'), b.created_at DESC`;
+
+    const [rows] = await pool.query(query, queryParams);
     res.json(rows);
   } catch (error) {
     console.error(error);
@@ -1213,26 +1239,55 @@ app.get('/api/blood-requests', authenticate, async (req, res) => {
 
 app.post('/api/blood-requests', authenticate, async (req, res) => {
   try {
-    const { patient_name, blood_group, units_required, location, urgency } = req.body;
+    const { patient_name, blood_group, units_required, location, location_lat, location_lng, urgency } = req.body;
     const user_id = req.user.id;
 
     const [result] = await pool.query(
-      `INSERT INTO blood_requests (user_id, patient_name, blood_group, units_required, location, urgency) VALUES (?, ?, ?, ?, ?, ?)`,
-      [user_id, patient_name, blood_group, units_required, location, urgency || 'high']
+      `INSERT INTO blood_requests (user_id, patient_name, blood_group, units_required, location, location_lat, location_lng, urgency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [user_id, patient_name, blood_group, units_required, location, location_lat || null, location_lng || null, urgency || 'high']
     );
 
     // Notify all other users about urgent blood requests
     if (urgency === 'critical' || urgency === 'high') {
       const [users] = await pool.query(`SELECT id FROM users WHERE id != ?`, [user_id]);
       for (let u of users) {
-        await pool.query(
-          `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'blood_request', ?, ?)`,
-          [u.id, `Urgent Blood Request: ${blood_group} needed at ${location}`, result.insertId]
-        );
+        await createNotification(u.id, 'blood_request', `Urgent Blood Request: ${blood_group} needed at ${location}`, result.insertId);
       }
     }
 
+    io.emit('blood_request_added', result.insertId);
+
     res.json({ id: result.insertId, message: 'Blood request created successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/blood-requests/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { patient_name, blood_group, units_required, location, location_lat, location_lng, urgency } = req.body;
+    
+    const [requests] = await pool.query('SELECT user_id FROM blood_requests WHERE id = ?', [id]);
+    if (requests.length === 0) return res.status(404).json({ error: 'Not found' });
+    
+    // Check auth
+    let isAuthorized = requests[0].user_id === req.user.id;
+    if (!isAuthorized) {
+      const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+      isAuthorized = users[0]?.is_admin === 1;
+    }
+    
+    if (!isAuthorized) return res.status(403).json({ error: 'Unauthorized' });
+
+    await pool.query(
+      `UPDATE blood_requests SET patient_name = ?, blood_group = ?, units_required = ?, location = ?, location_lat = ?, location_lng = ?, urgency = ? WHERE id = ?`,
+      [patient_name, blood_group, units_required, location, location_lat || null, location_lng || null, urgency, id]
+    );
+
+    io.emit('blood_request_updated', id);
+    res.json({ message: 'Blood request updated successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
@@ -1309,10 +1364,7 @@ app.post('/api/blood-requests/:id/comments', authenticate, async (req, res) => {
     // Notify requester
     const [requests] = await pool.query(`SELECT user_id, patient_name FROM blood_requests WHERE id = ?`, [id]);
     if (requests.length > 0 && requests[0].user_id !== author_id) {
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'blood_comment', ?, ?)`,
-        [requests[0].user_id, `Someone commented on your blood request for ${requests[0].patient_name}`, id]
-      );
+      await createNotification(requests[0].user_id, 'blood_comment', `Someone commented on your blood request for ${requests[0].patient_name}`, id);
     }
 
     res.json({ id: result.insertId, message: 'Comment added successfully' });
@@ -1339,10 +1391,7 @@ app.post('/api/blood-requests/:id/offers', authenticate, async (req, res) => {
     );
 
     // Notify requester
-    await pool.query(
-      `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'blood_offer', ?, ?)`,
-      [requests[0].user_id, `New donation offer received for ${requests[0].patient_name}`, id]
-    );
+    await createNotification(requests[0].user_id, 'blood_offer', `New donation offer received for ${requests[0].patient_name}`, id);
 
     res.json({ id: result.insertId, message: 'Donation offer sent successfully' });
   } catch (error) {
@@ -1459,7 +1508,7 @@ app.post('/api/speech/transcribe', authenticate, async (req, res) => {
 app.delete('/api/posts/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const [posts] = await pool.query('SELECT author_id, community_id, description FROM posts WHERE id = ?', [id]);
+    const [posts] = await pool.query('SELECT author_id, community_id, content FROM posts WHERE id = ?', [id]);
     if (posts.length === 0) return res.status(404).json({ error: 'Not found' });
     
     let isAuthorized = posts[0].author_id === req.user.id;
@@ -1476,17 +1525,20 @@ app.delete('/api/posts/:id', authenticate, async (req, res) => {
     if (!isAuthorized) return res.status(403).json({ error: 'Unauthorized' });
 
     const creatorId = posts[0].author_id;
-    let postDesc = posts[0].description || 'your post';
+    let postDesc = posts[0].content || 'your post';
     if (postDesc.length > 30) postDesc = postDesc.substring(0, 30) + '...';
     
+    // Delete dependent records first to avoid foreign key constraint errors
+    await pool.query('DELETE FROM comment_votes WHERE comment_id IN (SELECT id FROM comments WHERE post_id = ?)', [id]);
+    await pool.query('DELETE FROM comments WHERE post_id = ?', [id]);
+    await pool.query('DELETE FROM post_votes WHERE post_id = ?', [id]);
+    
+    // Now delete the post
     await pool.query('DELETE FROM posts WHERE id = ?', [id]);
     
     // Notify creator if admin deleted it
     if (creatorId !== req.user.id) {
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, 'system_delete', ?, NULL)`,
-        [creatorId, `An admin has deleted your post: "${postDesc}"`]
-      );
+      await createNotification(creatorId, 'system_delete', `An admin has deleted your post: "${postDesc}"`);
     }
 
     if (posts[0].community_id) {
@@ -1494,6 +1546,7 @@ app.delete('/api/posts/:id', authenticate, async (req, res) => {
     }
     res.json({ message: 'Post deleted' });
   } catch (err) {
+    console.error('Error deleting post:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1615,6 +1668,26 @@ app.get('/api/health-shares', authenticate, async (req, res) => {
   }
 });
 
+app.get('/api/health-shares/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const [rows] = await pool.query(`
+      SELECT hs.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional,
+      (SELECT COUNT(*) FROM health_share_comments hsc WHERE hsc.share_id = hs.id) as comment_count,
+      (SELECT vote_type FROM health_share_votes hsv WHERE hsv.share_id = hs.id AND hsv.user_id = ?) as user_vote
+      FROM health_shares hs
+      JOIN users u ON hs.author_id = u.id
+      WHERE hs.id = ?
+    `, [userId, id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.post('/api/health-shares', authenticate, upload.single('media'), async (req, res) => {
   try {
     const { content } = req.body;
@@ -1644,6 +1717,49 @@ app.post('/api/health-shares', authenticate, upload.single('media'), async (req,
   }
 });
 
+app.put('/api/health-shares/:id', authenticate, upload.single('media'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content, remove_media } = req.body;
+    const author_id = req.user.id;
+
+    const [shares] = await pool.query('SELECT author_id, media_url, media_type FROM health_shares WHERE id = ?', [id]);
+    if (shares.length === 0) return res.status(404).json({ error: 'Not found' });
+    
+    let isAuthorized = shares[0].author_id === req.user.id;
+    if (!isAuthorized) {
+      const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+      if (users[0]?.is_admin === 1) isAuthorized = true;
+    }
+
+    if (!isAuthorized) return res.status(403).json({ error: 'Unauthorized' });
+
+    let media_url = shares[0].media_url;
+    let media_type = shares[0].media_type;
+
+    if (remove_media === 'true') {
+      media_url = null;
+      media_type = null;
+    } else if (req.file) {
+      media_url = '/uploads/' + req.file.filename;
+      if (req.file.mimetype.startsWith('image/')) media_type = 'image';
+      else if (req.file.mimetype.startsWith('video/')) media_type = 'video';
+      else if (req.file.mimetype.startsWith('audio/')) media_type = 'audio';
+    }
+
+    await pool.query(
+      `UPDATE health_shares SET content = ?, media_url = ?, media_type = ? WHERE id = ?`,
+      [content, media_url, media_type, id]
+    );
+
+    io.emit('health_share_added', { action: 'update', triggerUserId: req.user.id });
+
+    res.json({ message: 'Share updated successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 app.post('/api/health-shares/:id/vote', authenticate, async (req, res) => {
   try {
     const { id } = req.params;

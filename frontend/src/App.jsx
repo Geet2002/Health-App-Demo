@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Toaster, ToastBar, toast } from 'react-hot-toast';
-import { X, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { X, CheckCircle2, XCircle, AlertCircle, ArrowUp } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ConfirmProvider } from './context/ConfirmContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -18,7 +18,6 @@ import CreateCommunity from './pages/CreateCommunity';
 import CommunityDetail from './pages/CommunityDetail';
 import Notifications from './pages/Notifications';
 import BloodDonation from './pages/BloodDonation';
-import CreateBloodRequest from './pages/CreateBloodRequest';
 import BloodRequestDetails from './pages/BloodRequestDetails';
 import HealthMoments from './pages/HealthMoments';
 import Profile from './pages/Profile';
@@ -34,10 +33,33 @@ function AppContent() {
   const isFullPage = ['/', '/login', '/signup'].includes(location.pathname);
   const hideSidebar = isFullPage;
 
+  const mainRef = useRef(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  const handleScroll = () => {
+    if (mainRef.current) {
+      // Show back to top button when scrolled down 300px
+      setShowBackToTop(mainRef.current.scrollTop > 300);
+    }
+  };
+
+  const scrollToTop = () => {
+    if (mainRef.current) {
+      mainRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   return (
-    <div className="flex flex-col sm:flex-row h-screen bg-gray-50 overflow-hidden">
+    <div className="flex flex-col sm:flex-row h-screen bg-gray-50 overflow-hidden relative">
       {!hideSidebar && <Sidebar />}
-      <main className={`flex-1 overflow-y-auto w-full ${!hideSidebar ? 'px-4 sm:px-6 lg:px-8 py-8 pb-24 sm:pb-8' : ''}`}>
+      <main 
+        ref={mainRef}
+        onScroll={handleScroll}
+        className={`flex-1 overflow-y-auto w-full relative ${!hideSidebar ? 'px-4 sm:px-6 lg:px-8 py-8 pb-24 sm:pb-8' : ''}`}
+      >
         {isFullPage ? (
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -56,7 +78,6 @@ function AppContent() {
               <Route path="/communities/:id" element={<ProtectedRoute><CommunityDetail /></ProtectedRoute>} />
               
               <Route path="/blood-donation" element={<ProtectedRoute><BloodDonation /></ProtectedRoute>} />
-              <Route path="/blood-donation/create" element={<ProtectedRoute><CreateBloodRequest /></ProtectedRoute>} />
               <Route path="/blood-donation/:id" element={<ProtectedRoute><BloodRequestDetails /></ProtectedRoute>} />
               <Route path="/health-moments" element={<ProtectedRoute><HealthMoments /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
@@ -66,6 +87,17 @@ function AppContent() {
               <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
             </Routes>
           </div>
+        )}
+        
+        {/* Back To Top Button */}
+        {!isFullPage && (
+          <button
+            onClick={scrollToTop}
+            className={`fixed bottom-24 sm:bottom-10 left-1/2 -translate-x-1/2 p-2 rounded-full bg-white/40 backdrop-blur-md border border-white/50 text-primary-700 shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:bg-white/60 hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] transition-all duration-300 z-[60] flex items-center justify-center ${showBackToTop ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}
+            aria-label="Back to top"
+          >
+            <ArrowUp className="w-5 h-5" />
+          </button>
         )}
       </main>
     </div>

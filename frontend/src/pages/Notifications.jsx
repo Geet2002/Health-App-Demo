@@ -1,20 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Bell, CheckSquare, MessageSquare, Users, Droplet, Info, Check, Circle, ExternalLink } from 'lucide-react';
+import { Bell, CheckSquare, MessageSquare, Users, Droplet, Info, Check, Circle, ExternalLink, Trash2, CheckCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { NotificationSkeleton } from '../components/Skeletons';
+import { useAuth } from '../context/AuthContext';
+import { socket } from '../socket';
+import { useConfirm } from '../context/ConfirmContext';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 export default function Notifications() {
+  const { user } = useAuth();
+  const confirm = useConfirm();
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all', 'unread'
 
   useEffect(() => {
     fetchNotifs();
-  }, []);
+
+    const handleNewNotif = (targetUserId) => {
+      if (user && targetUserId.toString() === user.id.toString()) {
+        fetchNotifs();
+      }
+    };
+    
+    socket.on('new_notification', handleNewNotif);
+    return () => socket.off('new_notification', handleNewNotif);
+  }, [user]);
 
   const fetchNotifs = async () => {
     try {
@@ -33,7 +48,46 @@ export default function Notifications() {
       setNotifs(notifs.map(n => n.id === id ? { ...n, is_read: 1 } : n));
       
       // Dispatch an event so the Sidebar can instantly update its badge without reloading
-      window.dispatchEvent(new CustomEvent('notificationRead'));
+      window.dispatchEvent(new CustomEvent('notificationRead', { detail: { action: 'markRead' } }));
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  const markAllRead = async () => {
+    try {
+      await axios.put(`${API_URL}/notifications/read-all`);
+      setNotifs(notifs.map(n => ({ ...n, is_read: 1 })));
+      window.dispatchEvent(new CustomEvent('notificationRead', { detail: { action: 'markAllRead' } })); // Badge will handle its own logic or just reset
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  const deleteNotif = async (id) => {
+    try {
+      await axios.delete(`${API_URL}/notifications/${id}`);
+      setNotifs(notifs.filter(n => n.id !== id));
+      window.dispatchEvent(new CustomEvent('notificationRead', { detail: { action: 'delete' } }));
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  const clearAll = async () => {
+    const ok = await confirm({
+      title: 'Clear All Notifications',
+      message: 'Are you sure you want to delete all notifications? This action cannot be undone.',
+      confirmText: 'Clear All',
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow-md',
+      type: 'danger'
+    });
+    if (!ok) return;
+    
+    try {
+      await axios.delete(`${API_URL}/notifications`);
+      setNotifs([]);
+      window.dispatchEvent(new CustomEvent('notificationRead', { detail: { action: 'clearAll' } }));
     } catch(err) {
       console.error(err);
     }
@@ -72,6 +126,22 @@ export default function Notifications() {
           </div>
           <h1 className="text-xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Notifications</h1>
         </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={markAllRead} 
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-bold text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            <CheckCheck className="w-4 h-4" />
+            <span className="hidden sm:inline">Mark All Read</span>
+          </button>
+          <button 
+            onClick={clearAll} 
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-bold text-red-600 hover:text-white hover:bg-red-600 bg-red-50 rounded-lg transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Clear All</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex space-x-1 bg-gray-100/80 p-0.5 rounded-lg w-full sm:w-64 mb-4">
@@ -93,14 +163,28 @@ export default function Notifications() {
       </div>
 
       {filteredNotifs.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-gray-300 shadow-sm">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          className="text-center py-16 bg-white rounded-3xl border border-dashed border-gray-300 shadow-sm"
+        >
            <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
            <p className="text-gray-500 text-lg font-medium">{filter === 'unread' ? 'No unread notifications!' : 'You\'re all caught up!'}</p>
-        </div>
+        </motion.div>
       ) : (
-        <div className="space-y-3">
-          {filteredNotifs.map(n => (
-            <div key={n.id} className={`group relative p-4 sm:p-5 rounded-2xl border transition-all ${n.is_read ? 'bg-white border-gray-100 hover:border-gray-200 shadow-sm hover:shadow' : 'bg-primary-50/50 border-primary-200 shadow hover:shadow-md'}`}>
+        <motion.div layout="position" className="space-y-3">
+          <AnimatePresence mode="popLayout" initial={false}>
+            {filteredNotifs.map(n => (
+              <motion.div 
+                key={n.id} 
+                layout="position"
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, x: -20 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                className={`group relative p-4 sm:p-5 rounded-2xl border transition-colors ${n.is_read ? 'bg-white border-gray-100 hover:border-gray-200 shadow-sm hover:shadow' : 'bg-primary-50/50 border-primary-200 shadow hover:shadow-md'}`}
+              >
               <div className="flex gap-4">
                 <div className="shrink-0 mt-1">
                   <div className={`p-2.5 rounded-full ${n.is_read ? 'bg-gray-50' : 'bg-white shadow-sm'}`}>
@@ -115,15 +199,24 @@ export default function Notifications() {
                       <p className="text-xs text-gray-500 mt-1.5 font-medium">{formatDistanceToNow(new Date(n.created_at))} ago</p>
                     </div>
                     
-                    {!n.is_read && (
+                    <div className="flex items-center gap-2">
+                      {!n.is_read && (
+                        <button 
+                          onClick={() => markRead(n.id)} 
+                          className="shrink-0 p-1.5 text-primary-600 hover:text-white hover:bg-primary-600 bg-primary-100 rounded-full transition-colors tooltip-trigger"
+                          title="Mark as Read"
+                        >
+                           <Check className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </button>
+                      )}
                       <button 
-                        onClick={() => markRead(n.id)} 
-                        className="shrink-0 p-1.5 text-primary-600 hover:text-white hover:bg-primary-600 bg-primary-100 rounded-full transition-colors tooltip-trigger"
-                        title="Mark as Read"
+                        onClick={() => deleteNotif(n.id)} 
+                        className="shrink-0 p-1.5 text-red-500 hover:text-white hover:bg-red-500 bg-red-50 rounded-full transition-colors"
+                        title="Delete Notification"
                       >
-                         <Check className="w-4 h-4 sm:w-5 sm:h-5" />
+                         <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                       </button>
-                    )}
+                    </div>
                   </div>
                   
                   {n.related_id && (() => {
@@ -148,9 +241,10 @@ export default function Notifications() {
                   })()}
                 </div>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+          </AnimatePresence>
+        </motion.div>
       )}
     </div>
   );

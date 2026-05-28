@@ -1,5 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { AlertCircle, FileText, MapPin, Send, Map as MapIcon, Mic, Loader2, Locate, X } from 'lucide-react';
@@ -225,7 +226,7 @@ export default function CreatePost({ isModal, initialType, onClose, communityIdP
     ? "bg-white rounded-3xl shadow-2xl border border-gray-200 overflow-hidden relative w-full max-w-2xl my-auto animate-scale-up max-h-[90vh] overflow-y-auto"
     : "bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden relative";
 
-  return (
+  const contentJsx = (
     <div className={wrapperClass} onClick={handleBackdropClick}>
       <div className={cardClass}>
         <div className="p-5 sm:p-8">
@@ -528,4 +529,6 @@ export default function CreatePost({ isModal, initialType, onClose, communityIdP
       </div>
     </div>
   );
+
+  return isModal ? createPortal(contentJsx, document.body) : contentJsx;
 }

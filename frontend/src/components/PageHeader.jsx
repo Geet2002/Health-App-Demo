@@ -33,7 +33,7 @@ export default function PageHeader({ title, description, icon: Icon, actionButto
       </div>
       
       {children && (
-        <div className="relative z-10 mt-4">
+        <div className="relative z-10 mt-2 sm:mt-4">
           {children}
         </div>
       )}

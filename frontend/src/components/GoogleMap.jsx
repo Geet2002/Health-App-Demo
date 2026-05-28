@@ -106,20 +106,6 @@ export default function GoogleMap({
             }
           });
 
-          // Place initial marker if provided
-          if (markerPosition) {
-            const mPos = toLatLng(markerPosition);
-            const pin = new google.maps.marker.PinElement();
-            pin.element.style.animation = 'marker-drop 0.4s ease-out forwards';
-            
-            markerRef.current = new google.maps.marker.AdvancedMarkerElement({
-              position: mPos,
-              map: mapInstance,
-              content: pin.element,
-              title: "Selected Location"
-            });
-          }
-
           setLoading(false);
         });
       })
@@ -133,16 +119,16 @@ export default function GoogleMap({
     return () => { cancelled = true; };
   }, [apiKey]);
 
-  // Recenter map and update zoom when center or zoom props change
+  // Recenter map and update zoom when center or zoom props change or map finishes loading
   useEffect(() => {
-    if (!mapRef.current || !center) return;
+    if (!mapRef.current || !center || loading) return;
     mapRef.current.panTo(toLatLng(center));
     mapRef.current.setZoom(zoom);
-  }, [center, zoom]);
+  }, [center, zoom, loading]);
 
-  // Update marker when markerPosition prop changes
+  // Update marker when markerPosition prop changes or map finishes loading
   useEffect(() => {
-    if (!mapRef.current || !window.google) return;
+    if (!mapRef.current || !window.google || loading) return;
 
     // Remove old marker
     if (markerRef.current) {
@@ -152,17 +138,26 @@ export default function GoogleMap({
 
     // Add new marker
     if (markerPosition) {
-      const pin = new window.google.maps.marker.PinElement();
-      pin.element.style.animation = 'marker-drop 0.4s ease-out forwards';
-      
-      markerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
-        position: toLatLng(markerPosition),
-        map: mapRef.current,
-        content: pin.element,
-        title: "Selected Location"
-      });
+      try {
+        const pin = new window.google.maps.marker.PinElement();
+        pin.element.style.animation = 'marker-drop 0.4s ease-out forwards';
+        
+        markerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
+          position: toLatLng(markerPosition),
+          map: mapRef.current,
+          content: pin.element,
+          title: "Selected Location"
+        });
+      } catch (err) {
+        console.warn("AdvancedMarkerElement failed, falling back to Marker:", err);
+        markerRef.current = new window.google.maps.Marker({
+          position: toLatLng(markerPosition),
+          map: mapRef.current,
+          title: "Selected Location"
+        });
+      }
     }
-  }, [markerPosition]);
+  }, [markerPosition, loading]);
 
   if (error) {
     return (

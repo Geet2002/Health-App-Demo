@@ -7,6 +7,7 @@ import {
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import CreatePost from '../pages/CreatePost';
+import { socket } from '../socket';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -23,7 +24,9 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
   useEffect(() => {
     let isMounted = true;
-    if (user) {
+    
+    const fetchUnreadCount = () => {
+      if (!user) return;
       axios.get(`${API_URL}/notifications`)
         .then(res => {
           if (isMounted) {
@@ -32,20 +35,40 @@ export default function Sidebar({ isOpen, setIsOpen }) {
           }
         })
         .catch(err => console.error("Failed to fetch notifications:", err));
-    }
+    };
+
+    fetchUnreadCount();
     
-    // Listener for when a notification is read to immediately decrement the badge
-    const handleNotificationRead = () => {
-      if (isMounted) {
-        setUnreadCount(prev => Math.max(0, prev - 1));
+    // Listener for when notifications are read, deleted, or cleared
+    const handleNotificationUpdate = (e) => {
+      if (e && e.detail) {
+        const action = e.detail.action;
+        if (action === 'markRead' || action === 'delete') {
+          if (isMounted) setUnreadCount(prev => Math.max(0, prev - 1));
+          return;
+        } else if (action === 'markAllRead' || action === 'clearAll') {
+          if (isMounted) setUnreadCount(0);
+          return;
+        }
       }
+      
+      // Fallback
+      fetchUnreadCount();
     };
     
-    window.addEventListener('notificationRead', handleNotificationRead);
+    const handleNewNotif = (targetUserId) => {
+      if (user && targetUserId.toString() === user.id.toString()) {
+        if (isMounted) setUnreadCount(prev => prev + 1);
+      }
+    };
+
+    window.addEventListener('notificationRead', handleNotificationUpdate);
+    socket.on('new_notification', handleNewNotif);
     
     return () => { 
       isMounted = false; 
-      window.removeEventListener('notificationRead', handleNotificationRead);
+      window.removeEventListener('notificationRead', handleNotificationUpdate);
+      socket.off('new_notification', handleNewNotif);
     };
   }, [user]);
 

@@ -15,6 +15,7 @@ import PostCard from '../components/PostCard';
 import PageHeader from '../components/PageHeader';
 import { PostSkeleton } from '../components/Skeletons';
 import CreatePost from './CreatePost';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -90,14 +91,14 @@ export default function Feed() {
         setHasNewPosts(true);
       } else {
         // Fallback for generic updates
-        fetchPosts(0, false);
+        fetchPosts(0, false, true);
       }
     };
     
     const handlePostUpdate = () => {
-      fetchPosts(0, false);
+      fetchPosts(0, false, true);
     };
-
+    
     socket.on('global_feed_updated', handleGlobalFeedUpdate);
     socket.on('post_updated', handlePostUpdate);
     socket.on('comment_updated', handlePostUpdate);
@@ -118,9 +119,9 @@ export default function Feed() {
     fetchPosts(0, false);
   }, [filter, searchQuery, categoryFilter]);
 
-  const fetchPosts = async (pageNum = 0, isLoadMore = false) => {
-    if (!isLoadMore) setLoading(true);
-    else setLoadingMore(true);
+  const fetchPosts = async (pageNum = 0, isLoadMore = false, silent = false) => {
+    if (isLoadMore) setLoadingMore(true);
+    else if (!silent) setLoading(true);
 
     try {
       const limit = 10;
@@ -141,8 +142,8 @@ export default function Feed() {
     } catch (error) {
       console.error('Error fetching posts:', error);
     } finally {
-      if (!isLoadMore) setLoading(false);
-      else setLoadingMore(false);
+      if (isLoadMore) setLoadingMore(false);
+      else if (!silent) setLoading(false);
     }
   };
 
@@ -156,6 +157,12 @@ export default function Feed() {
     });
     if (node) observer.current.observe(node);
   }, [loading, loadingMore, hasMore, page, filter, searchQuery, categoryFilter]);
+
+  const handlePostCreated = async () => {
+    setShowCreateModal(false);
+    await fetchPosts(0, false, true);
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  };
 
   const handleDeletePost = async (e, id) => {
     e.preventDefault();
@@ -324,7 +331,7 @@ export default function Feed() {
           {hasNewPosts && (
             <div className="flex justify-center z-30 sticky top-24 -my-2 pointer-events-none">
               <button 
-                onClick={() => { setHasNewPosts(false); fetchPosts(0, false); window.scrollTo({top: 0, behavior: 'smooth'}); }}
+                onClick={() => { setHasNewPosts(false); fetchPosts(0, false, true); window.scrollTo({top: 0, behavior: 'smooth'}); }}
                 className="bg-primary-600 text-white px-4 py-1.5 rounded-full shadow-lg text-sm font-bold flex items-center animate-bounce hover:bg-primary-700 transition-colors pointer-events-auto"
               >
                 ↑ New Posts
@@ -344,38 +351,37 @@ export default function Feed() {
               <p className="text-gray-500 text-sm">Be the first to create a post in this category!</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {posts.map((post, index) => {
-                if (posts.length === index + 1) {
+            <motion.div layout="position" className="space-y-4">
+              <AnimatePresence mode="popLayout" initial={false}>
+                {posts.map((post, index) => {
+                  const isLast = posts.length === index + 1;
                   return (
-                    <div ref={lastPostElementRef} key={post.id}>
+                    <motion.div 
+                      key={post.id}
+                      ref={isLast ? lastPostElementRef : null}
+                      layout="position"
+                      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, x: -20 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    >
                       <PostCard 
                         post={post} 
                         currentUser={user} 
-                        onDelete={handleDeletePost} 
+                        onDelete={handleDeletePost}
+                        onEdit={(p) => setEditingPost(p)}
                         onVote={fetchUserStats}
                       />
-                    </div>
+                    </motion.div>
                   );
-                } else {
-                  return (
-                    <PostCard 
-                      key={post.id} 
-                      post={post} 
-                      currentUser={user} 
-                      onDelete={handleDeletePost}
-                      onEdit={(p) => setEditingPost(p)}
-                      onVote={fetchUserStats}
-                    />
-                  );
-                }
-              })}
+                })}
+              </AnimatePresence>
               {loadingMore && (
                 <div className="pt-4 pb-8 flex justify-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
                 </div>
               )}
-            </div>
+            </motion.div>
           )}
         </div>
 

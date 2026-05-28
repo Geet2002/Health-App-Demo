@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import GoogleMap from '../components/GoogleMap';
@@ -7,8 +7,9 @@ import { SingleBloodRequestSkeleton } from '../components/Skeletons';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import Avatar from '../components/Avatar';
-import { Droplet, MapPin, Clock, User, Phone, Mail, MessageSquare, Send, CheckCircle, ArrowLeft, Trash2, Heart } from 'lucide-react';
+import { Droplet, MapPin, Clock, PlusCircle, User, CheckCircle, AlertCircle, Calendar, MessageSquare, Send, Trash2, Edit2, Shield, Heart, Phone, Mail, ArrowLeft, X } from 'lucide-react';
 import { useConfirm } from '../context/ConfirmContext';
+import { socket } from '../socket';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -27,6 +28,27 @@ export default function BloodRequestDetails() {
   const [offerForm, setOfferForm] = useState({ phone: '', email: '', message: '' });
   const [showOfferForm, setShowOfferForm] = useState(false);
   const [submittingOffer, setSubmittingOffer] = useState(false);
+  
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    patient_name: '',
+    blood_group: '',
+    units_required: 1,
+    location: '',
+    location_lat: null,
+    location_lng: null,
+    urgency: 'high'
+  });
+
+  const mapCenter = useMemo(() => {
+    if (request && request.location_lat && request.location_lng) {
+      return { 
+        lat: parseFloat(request.location_lat), 
+        lng: parseFloat(request.location_lng) 
+      };
+    }
+    return null;
+  }, [request?.location_lat, request?.location_lng]);
 
   const fetchRequestDetails = async () => {
     try {
@@ -38,6 +60,18 @@ export default function BloodRequestDetails() {
       });
       setComments(response.data.comments || []);
       setOffers(response.data.offers || []);
+      
+      if (!isEditing) {
+        setEditForm({
+          patient_name: response.data.patient_name,
+          blood_group: response.data.blood_group,
+          units_required: response.data.units_required,
+          location: response.data.location,
+          location_lat: response.data.location_lat,
+          location_lng: response.data.location_lng,
+          urgency: response.data.urgency || 'high'
+        });
+      }
     } catch (error) {
       console.error('Error fetching blood request details:', error);
       if (error.response && error.response.status === 404) {
@@ -50,6 +84,16 @@ export default function BloodRequestDetails() {
 
   useEffect(() => {
     fetchRequestDetails();
+  }, [id]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      fetchRequestDetails();
+    };
+    socket.on('blood_request_updated', handleUpdate);
+    return () => {
+      socket.off('blood_request_updated', handleUpdate);
+    };
   }, [id]);
 
   const handleToggleStatus = async () => {
@@ -79,6 +123,19 @@ export default function BloodRequestDetails() {
     } catch (error) {
       console.error('Error deleting request:', error);
       toast.error('Failed to delete request.');
+    }
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.put(`${API_URL}/blood-requests/${id}`, editForm);
+      setIsEditing(false);
+      toast.success('Blood request updated');
+      fetchRequestDetails();
+    } catch (error) {
+      console.error('Error updating request:', error);
+      toast.error('Failed to update request.');
     }
   };
 
@@ -162,23 +219,112 @@ export default function BloodRequestDetails() {
 
       {/* Main Request Card */}
       <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden ${request.status === 'fulfilled' ? 'border-gray-200 opacity-80' : 'border-red-100'}`}>
-        <div className={`px-6 py-5 border-b flex justify-between items-start ${request.status === 'fulfilled' ? 'bg-gray-50 border-gray-200' : 'bg-red-50/50 border-red-50'}`}>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{request.patient_name}</h1>
-            <p className="text-sm text-gray-500 mt-1 flex items-center">
-              <Clock className="w-4 h-4 mr-1" />
-              Requested {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
-            </p>
-          </div>
-          <div className="flex flex-col items-end space-y-2">
-            <span className="inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xl font-black bg-red-100 text-red-700 border border-red-200">
-              {request.blood_group}
-            </span>
-            <span className={`text-[11px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border ${getUrgencyColor(request.urgency)}`}>
-              {request.urgency}
-            </span>
-          </div>
-        </div>
+        
+        {isEditing ? (
+          <form onSubmit={handleEditSubmit} className="p-6">
+            <h2 className="text-xl font-bold mb-4 flex items-center">
+              <Edit2 className="w-5 h-5 mr-2 text-red-500" />
+              Edit Blood Request
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Patient Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.patient_name}
+                  onChange={e => setEditForm({...editForm, patient_name: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group</label>
+                <select
+                  required
+                  value={editForm.blood_group}
+                  onChange={e => setEditForm({...editForm, blood_group: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                >
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Units Required</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={editForm.units_required}
+                  onChange={e => setEditForm({...editForm, units_required: parseInt(e.target.value)})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hospital / Location</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.location}
+                  onChange={e => setEditForm({...editForm, location: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Urgency</label>
+                <select
+                  required
+                  value={editForm.urgency}
+                  onChange={e => setEditForm({...editForm, urgency: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                >
+                  <option value="medium">Medium - Within a few days</option>
+                  <option value="high">High - Within 24 hours</option>
+                  <option value="critical">Critical - Immediate</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="px-5 py-2 rounded-xl text-gray-600 hover:bg-gray-100 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-primary bg-red-600 hover:bg-red-700 px-6"
+              >
+                Save Changes
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <div className={`px-6 py-5 border-b flex justify-between items-start ${request.status === 'fulfilled' ? 'bg-gray-50 border-gray-200' : 'bg-red-50/50 border-red-50'}`}>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">{request.patient_name}</h1>
+                <p className="text-sm text-gray-500 mt-1 flex items-center">
+                  <Clock className="w-4 h-4 mr-1" />
+                  Requested {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
+                </p>
+              </div>
+              <div className="flex flex-col items-end space-y-2">
+                <span className="inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xl font-black bg-red-100 text-red-700 border border-red-200">
+                  {request.blood_group}
+                </span>
+                <span className={`text-[11px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border ${getUrgencyColor(request.urgency)}`}>
+                  {request.urgency}
+                </span>
+              </div>
+            </div>
 
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -206,10 +352,29 @@ export default function BloodRequestDetails() {
               </div>
             </div>
 
-            <div className="flex flex-col justify-center items-center md:items-end space-y-4 md:border-l border-gray-100 md:pl-6">
+            {/* Map Display (Optional) */}
+            {mapCenter && (
+              <div className="w-full h-48 md:h-full min-h-[200px] rounded-xl overflow-hidden border border-gray-200 relative z-0">
+                <GoogleMap 
+                  center={mapCenter} 
+                  zoom={15} 
+                  markerPosition={mapCenter}
+                />
+              </div>
+            )}
+          </div>
+          
+          <div className={`mt-6 ${request.location_lat && request.location_lng ? 'md:mt-6' : ''}`}>            <div className="flex flex-col justify-center items-center md:items-end space-y-4 md:border-l border-gray-100 md:pl-6">
               {isOwner ? (
                 <div className="w-full space-y-3">
                   <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Manage Request</p>
+                  <button 
+                    onClick={() => setIsEditing(true)}
+                    className="w-full py-2.5 px-4 rounded-xl font-bold flex justify-center items-center transition-all bg-blue-50 text-blue-600 hover:bg-blue-100"
+                  >
+                    <Edit2 className="w-5 h-5 mr-2" />
+                    Edit Request
+                  </button>
                   <button 
                     onClick={handleToggleStatus}
                     className={`w-full py-2.5 px-4 rounded-xl font-bold flex justify-center items-center transition-all ${
@@ -270,6 +435,8 @@ export default function BloodRequestDetails() {
             </div>
           </div>
         </div>
+        </>
+        )}
       </div>
 
       {/* Offer Form */}
