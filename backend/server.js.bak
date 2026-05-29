@@ -854,9 +854,7 @@ app.get('/api/communities/:id/events', authenticate, async (req, res) => {
 app.post('/api/communities/:id/events', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, event_date, location, location_lat, location_lng } = req.body;
-    require('fs').appendFileSync('payload_log.txt', JSON.stringify({ method: 'POST', body: req.body }) + '\n');
-    console.log("POST EVENT REQ.BODY:", req.body);
+    const { title, description, event_date, location, location_lat, location_lng } = req.body; console.log("PUT EVENT REQ.BODY:", req.body);
     
     // Check if user is an approved member
     const [memberCheck] = await pool.query(`SELECT status FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
@@ -893,9 +891,7 @@ app.post('/api/communities/:id/events', authenticate, async (req, res) => {
 app.put('/api/communities/:id/events/:eventId', authenticate, async (req, res) => {
   try {
     const { id, eventId } = req.params;
-    const { title, description, event_date, location, location_lat, location_lng } = req.body;
-    require('fs').appendFileSync('payload_log.txt', JSON.stringify({ method: 'PUT', body: req.body }) + '\n');
-    console.log("PUT EVENT REQ.BODY:", req.body);
+    const { title, description, event_date, location, location_lat, location_lng } = req.body; console.log("PUT EVENT REQ.BODY:", req.body);
     
     const [eventRows] = await pool.query('SELECT created_by FROM community_events WHERE id = ? AND community_id = ?', [eventId, id]);
     if (eventRows.length === 0) return res.status(404).json({ error: 'Event not found' });

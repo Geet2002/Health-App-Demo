@@ -5,10 +5,13 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
-import { Shield, Users, Lock, Unlock, Check, X, ShieldAlert, Trash2, MessageCircle, MapPin, Clock, AlertTriangle, HelpCircle, PlusCircle, Calendar, BookOpen, ExternalLink, Link as LinkIcon, Edit2, LogOut, Search } from 'lucide-react';
+import { Shield, Users, Lock, Unlock, Check, X, ShieldAlert, Trash2, MessageCircle, MapPin, Clock, AlertTriangle, HelpCircle, PlusCircle, Calendar, BookOpen, ExternalLink, Link as LinkIcon, Edit2, LogOut, Search, Locate, MapIcon } from 'lucide-react';
+import GoogleMap, { loadGoogleMaps } from '../components/GoogleMap';
+import LocationSelector from '../components/LocationSelector';
 import Avatar from '../components/Avatar';
 import MedicalBadge from '../components/MedicalBadge';
 import PostCard from '../components/PostCard';
+import ShareMenu from '../components/ShareMenu';
 import { CommunityCardSkeleton } from '../components/Skeletons';
 import { socket } from '../socket';
 import CreatePost from './CreatePost';
@@ -16,6 +19,7 @@ import CreatePost from './CreatePost';
 import { useConfirm } from '../context/ConfirmContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+
 
 function useTabPagination(fetchUrl, id, initialLimit = 10) {
   const [items, setItems] = React.useState([]);
@@ -114,6 +118,7 @@ export default function CommunityDetail() {
   // Active Event Details modal state
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
+  const [attendeeSearchQuery, setAttendeeSearchQuery] = useState('');
   const [loadingAttendees, setLoadingAttendees] = useState(false);
 
   const fetchAttendees = async (eventId) => {
@@ -142,7 +147,7 @@ export default function CommunityDetail() {
 
   // Event creation state
   const [showEventForm, setShowEventForm] = useState(false);
-  const [newEvent, setNewEvent] = useState({ title: '', description: '', event_date: '', location: '' });
+  const [newEvent, setNewEvent] = useState({ title: '', description: '', event_date: '', location: '', location_lat: null, location_lng: null, use_map: false });
 
   // Resource creation state
   const [showResourceForm, setShowResourceForm] = useState(false);
@@ -416,11 +421,16 @@ export default function CommunityDetail() {
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
+    if (newEvent.use_map && (!newEvent.location_lat || !newEvent.location_lng)) {
+      toast.error('Please click "Find on Map" or drop a pin to confirm the exact location!');
+      return;
+    }
+    
     try {
       await axios.post(`${API_URL}/communities/${id}/events`, newEvent);
       toast.success('Event created!');
       setShowEventForm(false);
-      setNewEvent({ title: '', description: '', event_date: '', location: '' });
+      setNewEvent({ title: '', description: '', event_date: '', location: '', location_lat: null, location_lng: null, use_map: false });
       fetchDetail();
     } catch (err) {
       toast.error('Failed to create event');
@@ -442,12 +452,18 @@ export default function CommunityDetail() {
 
   const handleUpdateEvent = async (e) => {
     e.preventDefault();
+    const isUsingMap = editingEvent.use_map !== undefined ? editingEvent.use_map : !!(editingEvent.location_lat && editingEvent.location_lng);
+    if (isUsingMap && (!editingEvent.location_lat || !editingEvent.location_lng)) {
+      toast.error('Please click "Find on Map" or drop a pin to confirm the exact location!');
+      return;
+    }
+
     try {
       // Need to format date properly for input if needed, but it's handled by onChange mostly.
       await axios.put(`${API_URL}/communities/${id}/events/${editingEvent.id}`, editingEvent);
       toast.success('Event updated!');
       setEditingEvent(null);
-      fetchDetail();
+      eventsPagination.fetchItems(0, false);
     } catch (err) {
       toast.error('Failed to update event');
     }
@@ -797,12 +813,27 @@ export default function CommunityDetail() {
                   </div>
 
                   {showEventForm && (
-                    <form onSubmit={handleCreateEvent} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                    <form onSubmit={handleCreateEvent} className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
                       <h3 className="font-bold text-gray-900 mb-2">Host an Event</h3>
-                      <input type="text" placeholder="Event Title" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} />
-                      <input type="datetime-local" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" value={newEvent.event_date} onChange={e => setNewEvent({...newEvent, event_date: e.target.value})} />
-                      <input type="text" placeholder="Location (e.g., Central Park or Zoom link)" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" value={newEvent.location} onChange={e => setNewEvent({...newEvent, location: e.target.value})} />
-                      <textarea placeholder="Event Description..." className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" rows="3" value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})}></textarea>
+                      <input type="text" placeholder="Event Title" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" value={newEvent.title} onChange={e => setNewEvent(prev => ({...prev, title: e.target.value}))} />
+                      <div className="flex flex-col md:flex-row gap-4">
+                        <div className="flex-1 w-full flex items-center border border-gray-200 rounded-lg px-3 bg-white focus-within:ring-2 focus-within:ring-primary-500">
+                          <span className="text-gray-500 text-sm whitespace-nowrap mr-2 font-medium">Date:</span>
+                          <input type="date" required className="flex-1 w-full min-w-0 py-2 outline-none bg-transparent" value={(newEvent.event_date || '').split('T')[0] || ''} onChange={e => {
+                            const time = (newEvent.event_date || '').split('T')[1] || '00:00';
+                            setNewEvent(prev => ({...prev, event_date: `${e.target.value}T${time}`}));
+                          }} />
+                        </div>
+                        <div className="flex-1 w-full flex items-center border border-gray-200 rounded-lg px-3 bg-white focus-within:ring-2 focus-within:ring-primary-500">
+                          <span className="text-gray-500 text-sm whitespace-nowrap mr-2 font-medium">Time:</span>
+                          <input type="time" required className="flex-1 w-full min-w-0 py-2 outline-none bg-transparent" value={(newEvent.event_date || '').split('T')[1] || ''} onChange={e => {
+                            const date = (newEvent.event_date || '').split('T')[0] || new Date().toISOString().split('T')[0];
+                            setNewEvent(prev => ({...prev, event_date: `${date}T${e.target.value}`}));
+                          }} />
+                        </div>
+                      </div>
+                      <LocationSelector formData={newEvent} setFormData={setNewEvent} />
+                      <textarea placeholder="Event Description..." className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" rows="3" value={newEvent.description} onChange={e => setNewEvent(prev => ({...prev, description: e.target.value}))}></textarea>
                       <button type="submit" className="btn-primary w-full py-2">Publish Event</button>
                     </form>
                   )}
@@ -817,14 +848,44 @@ export default function CommunityDetail() {
                       {events.map(event => (
                         <div key={event.id}>
                           {editingEvent?.id === event.id ? (
-                            <form onSubmit={handleUpdateEvent} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                            <form onSubmit={handleUpdateEvent} className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
                               <h3 className="font-bold text-gray-900 mb-2">Edit Event</h3>
-                              <input type="text" placeholder="Event Title" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" value={editingEvent.title} onChange={e => setEditingEvent({...editingEvent, title: e.target.value})} />
-                              <textarea placeholder="Event Description" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" rows="3" value={editingEvent.description} onChange={e => setEditingEvent({...editingEvent, description: e.target.value})}></textarea>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <input type="datetime-local" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" value={new Date(new Date(editingEvent.event_date).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setEditingEvent({...editingEvent, event_date: e.target.value})} />
-                                <input type="text" placeholder="Location or Virtual Link" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" value={editingEvent.location} onChange={e => setEditingEvent({...editingEvent, location: e.target.value})} />
-                              </div>
+                              <input type="text" placeholder="Event Title" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" value={editingEvent.title} onChange={e => setEditingEvent(prev => ({...prev, title: e.target.value}))} />
+                              <textarea placeholder="Event Description" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" rows="3" value={editingEvent.description} onChange={e => setEditingEvent(prev => ({...prev, description: e.target.value}))}></textarea>
+                              <div className="flex flex-col md:flex-row gap-4">
+                                  <div className="flex-1 w-full flex items-center border border-gray-200 rounded-lg px-3 bg-white focus-within:ring-2 focus-within:ring-primary-500">
+                                    <span className="text-gray-500 text-sm whitespace-nowrap mr-2 font-medium">Date:</span>
+                                    <input type="date" required className="flex-1 w-full min-w-0 py-2 outline-none bg-transparent" 
+                                      value={editingEvent.event_date ? new Date(new Date(editingEvent.event_date).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) : ''} 
+                                      onChange={e => {
+                                        try {
+                                          const local = new Date(new Date(editingEvent.event_date || Date.now()).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                                          const time = local.split('T')[1];
+                                          setEditingEvent(prev => ({...prev, event_date: `${e.target.value}T${time}`}));
+                                        } catch (err) {
+                                          setEditingEvent(prev => ({...prev, event_date: `${e.target.value}T00:00`}));
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="flex-1 w-full flex items-center border border-gray-200 rounded-lg px-3 bg-white focus-within:ring-2 focus-within:ring-primary-500">
+                                    <span className="text-gray-500 text-sm whitespace-nowrap mr-2 font-medium">Time:</span>
+                                    <input type="time" required className="flex-1 w-full min-w-0 py-2 outline-none bg-transparent" 
+                                      value={editingEvent.event_date ? new Date(new Date(editingEvent.event_date).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(11, 16) : ''} 
+                                      onChange={e => {
+                                        try {
+                                          const local = new Date(new Date(editingEvent.event_date || Date.now()).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                                          const date = local.split('T')[0];
+                                          setEditingEvent(prev => ({...prev, event_date: `${date}T${e.target.value}`}));
+                                        } catch (err) {
+                                          const date = new Date().toISOString().split('T')[0];
+                                          setEditingEvent(prev => ({...prev, event_date: `${date}T${e.target.value}`}));
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              <LocationSelector formData={editingEvent} setFormData={setEditingEvent} />
                               <div className="flex space-x-3">
                                 <button type="submit" className="btn-primary flex-1 py-2">Save Changes</button>
                                 <button type="button" onClick={() => setEditingEvent(null)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-50 transition-colors">Cancel</button>
@@ -832,38 +893,50 @@ export default function CommunityDetail() {
                             </form>
                           ) : (
                             <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col md:flex-row md:items-center justify-between shadow-sm hover:shadow-md transition-shadow relative">
-                              {(isAdmin || event.created_by === user?.id) && (
-                                <div className="absolute top-4 right-4 flex space-x-2 z-20">
-                                  <button onClick={(e) => { e.stopPropagation(); setEditingEvent(event); }} className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              )}
+                              {/* Badges and Delete Actions */}
+                              <div className="absolute top-4 right-4 flex items-center space-x-2">
+                                <ShareMenu url={`${window.location.origin}/community/${id}`} text={`Check out this event: ${event.title}`} />
+                                {(isAdmin || event.created_by === user?.id) && (
+                                  <div className="flex items-center space-x-1">
+                                    <button onClick={(e) => { e.stopPropagation(); setEditingEvent(event); }} className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
+                                      <Edit2 className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                               <div 
                                 onClick={() => {
                                   setSelectedEvent(event);
+                                  setAttendeeSearchQuery('');
                                   fetchAttendees(event.id);
                                 }}
                                 className="flex-1 mb-4 md:mb-0 cursor-pointer group pr-16"
                               >
                                 <h3 className="text-lg font-bold text-gray-900 group-hover:text-primary-600 transition-colors">{event.title}</h3>
                                 <p className="text-sm text-gray-600 mt-1 line-clamp-2">{event.description}</p>
-                                <div className="flex flex-wrap items-center mt-3 text-xs text-gray-500 space-x-4">
-                                  <span className="flex items-center text-primary-700 font-medium bg-primary-50 px-2 py-1 rounded">
-                                    <Calendar className="w-3 h-3 mr-1" />
-                                    {new Date(event.event_date).toLocaleString()}
-                                  </span>
-                                  <span className="flex items-center">
-                                    <MapPin className="w-3 h-3 mr-1" />
-                                    {event.location}
-                                  </span>
-                                  <span className="flex items-center">
-                                    <Users className="w-3 h-3 mr-1" />
-                                    {event.attendee_count} attending
-                                  </span>
+                                <div className="flex flex-col mt-4 space-y-2 text-[13px] text-gray-600">
+                                  <div className="flex items-center w-fit text-primary-700 font-bold bg-primary-50 px-2.5 py-1 rounded-md border border-primary-100">
+                                    <Calendar className="w-4 h-4 mr-1.5" />
+                                    {new Date(event.event_date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                  </div>
+                                  <div className="flex items-start flex-wrap gap-2">
+                                    <div className="flex items-start">
+                                      <MapPin className="w-4 h-4 mr-1.5 mt-0.5 text-gray-400 flex-shrink-0" />
+                                      <span className="line-clamp-2">{event.location}</span>
+                                    </div>
+                                    {event.location_lat && event.location_lng && (
+                                      <span className="text-primary-600 inline-flex items-center text-[10px] font-bold bg-primary-50 px-1.5 py-0.5 rounded border border-primary-100 ml-1 mt-0.5">
+                                        <MapIcon className="w-3 h-3 mr-1" /> Map Available
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center">
+                                    <Users className="w-4 h-4 mr-1.5 text-gray-400" />
+                                    <span className="font-medium">{event.attendee_count} attending</span>
+                                  </div>
                                 </div>
                               </div>
                               <div className="md:ml-6 flex-shrink-0 relative z-10">
@@ -1132,13 +1205,16 @@ export default function CommunityDetail() {
 
       {/* Event Details Modal */}
       {selectedEvent && createPortal(
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-150 relative animate-scale-in">
-            {/* Modal Header banner */}
-            <div className="h-4 bg-gradient-to-r from-primary-500 to-emerald-500 w-full" />
-            
+        <div 
+          className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setSelectedEvent(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-gray-150 relative animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Body */}
-            <div className="p-6 sm:p-8 space-y-6">
+            <div className="p-6 sm:p-8 space-y-6 overflow-y-auto">
               <div className="flex justify-between items-start">
                 <h3 className="text-xl sm:text-2xl font-black text-gray-900 leading-tight pr-4">
                   {selectedEvent.title}
@@ -1157,9 +1233,20 @@ export default function CommunityDetail() {
                   <Calendar className="w-4 h-4 mr-2 text-primary-500" />
                   <span className="font-semibold">{new Date(selectedEvent.event_date).toLocaleString()}</span>
                 </div>
-                <div className="flex items-center text-gray-700">
-                  <MapPin className="w-4 h-4 mr-2 text-red-500" />
-                  <span>{selectedEvent.location}</span>
+                <div className="flex flex-col space-y-2">
+                  <div className="flex items-center text-gray-700">
+                    <MapPin className="w-4 h-4 mr-2 text-red-500" />
+                    <span>{selectedEvent.location}</span>
+                  </div>
+                  {selectedEvent.location_lat && selectedEvent.location_lng && (
+                    <div className="h-48 rounded-xl overflow-hidden border border-gray-200 relative z-0 mt-3 w-full">
+                      <GoogleMap 
+                        center={{ lat: parseFloat(selectedEvent.location_lat), lng: parseFloat(selectedEvent.location_lng) }} 
+                        zoom={15} 
+                        markerPosition={{ lat: parseFloat(selectedEvent.location_lat), lng: parseFloat(selectedEvent.location_lng) }}
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center text-gray-700">
                   <Users className="w-4 h-4 mr-2 text-indigo-500" />
@@ -1198,7 +1285,21 @@ export default function CommunityDetail() {
 
               {/* Attendees List Section */}
               <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-extrabold uppercase tracking-wider text-gray-400">Who's Coming ({attendees.length})</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-gray-400">Who's Coming ({attendees.length})</h4>
+                  {attendees.length > 5 && (
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input 
+                        type="text" 
+                        placeholder="Search attendees..." 
+                        className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-primary-500 outline-none w-36 sm:w-48 bg-gray-50 focus:bg-white transition-colors"
+                        value={attendeeSearchQuery}
+                        onChange={e => setAttendeeSearchQuery(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
                 
                 {loadingAttendees ? (
                   <div className="flex justify-center items-center py-6">
@@ -1209,8 +1310,8 @@ export default function CommunityDetail() {
                     <p className="text-xs text-gray-400 font-medium">No RSVPs yet. Be the first to join!</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
-                    {attendees.map(member => (
+                  <div className="grid grid-cols-2 gap-2 max-h-52 sm:max-h-60 overflow-y-auto pr-1">
+                    {attendees.filter(a => a.username.toLowerCase().includes(attendeeSearchQuery.toLowerCase())).map(member => (
                       <div key={member.id} className="flex items-center space-x-2.5 p-2 rounded-xl bg-gray-50/50 border border-gray-100">
                         <Link to={`/user/${member.id}`} onClick={() => setSelectedEvent(null)} className="shrink-0 hover:opacity-85 transition-opacity">
                           <Avatar src={member.profile_picture} name={member.username} size="w-8 h-8" />
@@ -1227,6 +1328,9 @@ export default function CommunityDetail() {
                         </div>
                       </div>
                     ))}
+                    {attendees.filter(a => a.username.toLowerCase().includes(attendeeSearchQuery.toLowerCase())).length === 0 && (
+                      <div className="col-span-2 text-center py-4 text-xs text-gray-400">No attendees match your search.</div>
+                    )}
                   </div>
                 )}
               </div>

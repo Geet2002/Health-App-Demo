@@ -6,8 +6,9 @@ import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { BloodRequestSkeleton } from '../components/Skeletons';
 import PageHeader from '../components/PageHeader';
-import { Droplet, MapPin, Clock, PlusCircle, CheckCircle, User, Search, AlertCircle, Hash, Send, X, Locate, MapIcon } from 'lucide-react';
-import GoogleMap, { loadGoogleMaps } from '../components/GoogleMap';
+import LocationSelector from '../components/LocationSelector';
+import ShareMenu from '../components/ShareMenu';
+import { Droplet, MapPin, Clock, PlusCircle, CheckCircle, User, Search, AlertCircle, Hash, Send, X } from 'lucide-react';
 import { socket } from '../socket';
 import toast from 'react-hot-toast';
 
@@ -31,60 +32,6 @@ export default function BloodDonation() {
     urgency: 'high'
   });
 
-  const [position, setPosition] = useState(null);
-  const [deviceLocation, setDeviceLocation] = useState(null);
-  const [showMap, setShowMap] = useState(false);
-  const [geocoding, setGeocoding] = useState(false);
-  const [geocodeError, setGeocodeError] = useState('');
-  
-  const mapsApiKey = import.meta.env.VITE_MAPJS_AIP_KEY || import.meta.env.VITE_MAPS_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
-
-  // Get device location on mount for map centering
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setDeviceLocation(p);
-      }, () => {});
-    }
-  }, []);
-
-  const resetToCurrentLocation = () => {
-    if (navigator.geolocation) {
-      setGeocoding(true);
-      setGeocodeError('');
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          setPosition(p);
-          setDeviceLocation(p);
-          setShowMap(true);
-          
-          if (!formData.location) {
-            loadGoogleMaps(mapsApiKey).then((google) => {
-              const geocoder = new google.maps.Geocoder();
-              geocoder.geocode({ location: p }, (results, status) => {
-                if (status === 'OK' && results[0]) {
-                  setFormData(prev => ({ ...prev, location: results[0].formatted_address, location_lat: p.lat, location_lng: p.lng }));
-                }
-                setGeocoding(false);
-              });
-            }).catch(() => setGeocoding(false));
-          } else {
-            setFormData(prev => ({ ...prev, location_lat: p.lat, location_lng: p.lng }));
-            setGeocoding(false);
-          }
-        },
-        (error) => {
-          setGeocodeError('Could not get current location.');
-          setGeocoding(false);
-        }
-      );
-    } else {
-      setGeocodeError('Geolocation is not supported by your browser.');
-    }
-  };
-
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -105,9 +52,6 @@ export default function BloodDonation() {
         location_lng: null,
         urgency: 'high'
       });
-      setPosition(null);
-      setShowMap(false);
-      setGeocodeError('');
       toast.success('Blood request posted successfully!');
       fetchRequests();
     } catch (error) {
@@ -144,8 +88,6 @@ export default function BloodDonation() {
       socket.off('blood_request_updated', handleUpdate);
     };
   }, [searchQuery]);
-
-
 
   const getUrgencyColor = (urgency) => {
     switch (urgency) {
@@ -211,8 +153,8 @@ export default function BloodDonation() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {requests.map(request => (
-            <Link to={`${user ? `/blood-donation/${request.id}` : '/login'}`} key={request.id} className={`bg-white rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-1 transition-all border overflow-hidden flex flex-col ${request.status === 'fulfilled' ? 'opacity-60 border-gray-200' : 'border-red-100'} block`}>
-              <div className={`px-4 py-3 border-b ${request.status === 'fulfilled' ? 'bg-gray-50 border-gray-200' : 'bg-red-50/50 border-red-50'} flex justify-between items-start`}>
+            <Link to={`${user ? `/blood-donation/${request.id}` : '/login'}`} key={request.id} className={`bg-white rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-1 transition-all border flex flex-col ${request.status === 'fulfilled' ? 'opacity-60 border-gray-200' : 'border-red-100'} block`}>
+              <div className={`px-4 py-3 border-b rounded-t-2xl ${request.status === 'fulfilled' ? 'bg-gray-50 border-gray-200' : 'bg-red-50/50 border-red-50'} flex justify-between items-start`}>
                 <div>
                   <h3 className="font-bold text-base sm:text-lg text-gray-900 leading-tight">{request.patient_name}</h3>
                   <p className="text-[11px] text-gray-500 mt-0.5 flex items-center">
@@ -220,10 +162,15 @@ export default function BloodDonation() {
                     Requested {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
                   </p>
                 </div>
-                <div className="flex flex-col items-end space-y-1.5 shrink-0">
-                  <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-sm font-black bg-red-100 text-red-700 border border-red-200">
-                    {request.blood_group}
-                  </span>
+                <div className="flex flex-col items-end space-y-1.5 shrink-0 relative z-10">
+                  <div className="flex items-center space-x-1">
+                    {request.status !== 'fulfilled' && (
+                      <ShareMenu url={`${window.location.origin}/blood-donation/${request.id}`} text={`Check out this blood request for ${request.patient_name}`} />
+                    )}
+                    <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-sm font-black bg-red-100 text-red-700 border border-red-200">
+                      {request.blood_group}
+                    </span>
+                  </div>
                   {request.status !== 'fulfilled' && (
                     <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-full border ${getUrgencyColor(request.urgency)}`}>
                       {request.urgency}
@@ -238,9 +185,16 @@ export default function BloodDonation() {
                     <Droplet className="w-3.5 h-3.5 mr-2 mt-0.5 text-gray-400 flex-shrink-0" />
                     <span><strong>{request.units_required}</strong> Units Required</span>
                   </div>
-                  <div className="flex items-start">
-                    <MapPin className="w-3.5 h-3.5 mr-2 mt-0.5 text-gray-400 flex-shrink-0" />
-                    <span className="line-clamp-2">{request.location}</span>
+                  <div className="flex items-start flex-wrap gap-1.5">
+                    <div className="flex items-start">
+                      <MapPin className="w-3.5 h-3.5 mr-2 mt-0.5 text-gray-400 flex-shrink-0" />
+                      <span className="line-clamp-2">{request.location}</span>
+                    </div>
+                    {request.location_lat && request.location_lng && (
+                      <span className="inline-flex items-center text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100 ml-5">
+                        Map Available
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-start">
                     <User className="w-3.5 h-3.5 mr-2 mt-0.5 text-gray-400 flex-shrink-0" />
@@ -249,7 +203,7 @@ export default function BloodDonation() {
                 </div>
               </div>
 
-              <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex justify-between items-center gap-3">
+              <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex justify-between items-center gap-3 rounded-b-2xl">
                 {request.status === 'fulfilled' ? (
                   <span className="inline-flex items-center text-[13px] font-semibold text-green-600 shrink-0">
                     <CheckCircle className="w-3.5 h-3.5 mr-1" /> Fulfilled
@@ -268,7 +222,6 @@ export default function BloodDonation() {
         </div>
       )}
 
-      {/* Request Blood Modal */}
       {isModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-sm overflow-y-auto animate-fade-in">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative mt-8 mb-8 sm:mt-12 sm:mb-12 animate-scale-up">
@@ -347,107 +300,7 @@ export default function BloodDonation() {
                   </div>
 
                   <div className="sm:col-span-2">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 mb-2 sm:mb-1">
-                      <label htmlFor="location" className="block text-sm font-bold text-gray-700 flex items-center shrink-0">
-                        <MapPin className="w-4 h-4 mr-1 text-gray-400 shrink-0" /> Exact Location (Hospital Name & Area)
-                      </label>
-                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto mt-1 sm:mt-0">
-                        <button
-                          type="button"
-                          onClick={resetToCurrentLocation}
-                          disabled={geocoding}
-                          className="flex items-center justify-center text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 rounded-lg text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50 flex-1 sm:flex-none border border-red-100"
-                        >
-                          <Locate className={`w-3.5 h-3.5 mr-1.5 ${geocoding ? 'animate-spin' : ''}`} />
-                          {geocoding ? 'Locating...' : 'Current Location'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowMap(!showMap)}
-                          className="flex items-center justify-center text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 rounded-lg text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors flex-1 sm:flex-none border border-gray-200"
-                        >
-                          <MapIcon className="w-3.5 h-3.5 mr-1.5" />
-                          {showMap ? 'Hide Map' : 'Show Map'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!formData.location) return setGeocodeError('Enter a location to find');
-                            setGeocodeError('');
-                            setGeocoding(true);
-                            
-                            if (!mapsApiKey) {
-                              setGeocodeError('Google Maps API key is missing.');
-                              setGeocoding(false);
-                              return;
-                            }
-
-                            try {
-                              const google = await loadGoogleMaps(mapsApiKey);
-                              const geocoder = new google.maps.Geocoder();
-                              geocoder.geocode({ address: formData.location }, async (results, status) => {
-                                if (status === 'OK' && results[0]) {
-                                  const lat = results[0].geometry.location.lat();
-                                  const lng = results[0].geometry.location.lng();
-                                  setPosition({ lat, lng });
-                                  setFormData(prev => ({ ...prev, location_lat: lat, location_lng: lng }));
-                                  setShowMap(true);
-                                  setGeocoding(false);
-                                } else {
-                                  setGeocodeError('Location not found.');
-                                  setGeocoding(false);
-                                }
-                              });
-                            } catch (err) {
-                              setGeocodeError('Failed to load Google Maps or find location.');
-                              setGeocoding(false);
-                            }
-                          }}
-                          className="flex items-center justify-center text-[11px] sm:text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-2.5 py-1.5 rounded-lg transition-colors border border-green-100 flex-1 sm:flex-none"
-                        >
-                          {geocoding ? 'Finding...' : 'Find'}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <input
-                      id="location"
-                      name="location"
-                      required
-                      type="text"
-                      placeholder="e.g. City Hospital, Downtown"
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:border-transparent focus:ring-red-500 transition-colors bg-gray-50 focus:bg-white text-gray-900 font-medium mb-2"
-                      value={formData.location}
-                      onChange={handleFormChange}
-                    />
-                    
-                    {geocodeError && <p className="mt-1 mb-2 text-xs text-red-600">{geocodeError}</p>}
-                    
-                    {showMap && (
-                      <div className="h-64 rounded-xl overflow-hidden border border-gray-300 relative z-0">
-                        <GoogleMap 
-                          center={position || deviceLocation || { lat: 20.5937, lng: 78.9629 }} 
-                          zoom={position ? 15 : (deviceLocation ? 14 : 5)} 
-                          markerPosition={position}
-                          onMapClick={(coords) => {
-                            setPosition(coords);
-                            // Reverse geocode to fill location name
-                            loadGoogleMaps(mapsApiKey).then((google) => {
-                              const geocoder = new google.maps.Geocoder();
-                              geocoder.geocode({ location: coords }, (results, status) => {
-                                if (status === 'OK' && results[0]) {
-                                  setFormData(prev => ({ ...prev, location: results[0].formatted_address, location_lat: coords.lat, location_lng: coords.lng }));
-                                } else {
-                                  setFormData(prev => ({ ...prev, location_lat: coords.lat, location_lng: coords.lng }));
-                                }
-                              });
-                            }).catch(() => {
-                              setFormData(prev => ({ ...prev, location_lat: coords.lat, location_lng: coords.lng }));
-                            });
-                          }}
-                        />
-                      </div>
-                    )}
+                    <LocationSelector formData={formData} setFormData={setFormData} />
                   </div>
 
                   <div className="sm:col-span-2">

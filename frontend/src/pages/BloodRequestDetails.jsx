@@ -7,6 +7,7 @@ import { SingleBloodRequestSkeleton } from '../components/Skeletons';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import Avatar from '../components/Avatar';
+import LocationSelector from '../components/LocationSelector';
 import { Droplet, MapPin, Clock, PlusCircle, User, CheckCircle, AlertCircle, Calendar, MessageSquare, Send, Trash2, Edit2, Shield, Heart, Phone, Mail, ArrowLeft, X } from 'lucide-react';
 import { useConfirm } from '../context/ConfirmContext';
 import { socket } from '../socket';
@@ -128,6 +129,12 @@ export default function BloodRequestDetails() {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+    const isUsingMap = editForm.use_map !== undefined ? editForm.use_map : !!(editForm.location_lat && editForm.location_lng);
+    if (isUsingMap && (!editForm.location_lat || !editForm.location_lng)) {
+      toast.error('Please click "Find on Map" or drop a pin to confirm the exact location!');
+      return;
+    }
+    
     try {
       await axios.put(`${API_URL}/blood-requests/${id}`, editForm);
       setIsEditing(false);
@@ -267,14 +274,7 @@ export default function BloodRequestDetails() {
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Hospital / Location</label>
-                <input
-                  type="text"
-                  required
-                  value={editForm.location}
-                  onChange={e => setEditForm({...editForm, location: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
-                />
+                <LocationSelector formData={editForm} setFormData={setEditForm} />
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Urgency</label>

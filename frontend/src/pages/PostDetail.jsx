@@ -7,6 +7,7 @@ import MedicalBadge from '../components/MedicalBadge';
 import { AlertTriangle, HelpCircle, MapPin, Send, ArrowLeft, User, Clock, Trash2, ThumbsUp, ThumbsDown, MessageSquare, Mic } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import { useAuth } from '../context/AuthContext';
+import ShareMenu from '../components/ShareMenu';
 import useSpeechToText from '../hooks/useSpeechToText';
 import { socket } from '../socket';
 import GoogleMap from '../components/GoogleMap';
@@ -280,11 +281,11 @@ export default function PostDetail() {
 
       {/* Main Post Card */}
       <div className={`
-        bg-white rounded-3xl shadow-sm border overflow-hidden mb-8
+        bg-white rounded-3xl shadow-sm border mb-8
         ${post.type === 'emergency' ? 'border-emergency-200 shadow-emergency-100/50' : 'border-gray-200'}
       `}>
-        <div className={`p-5 sm:p-6 lg:p-8 ${post.type === 'emergency' ? 'bg-emergency-50/10' : ''}`}>
-          <div className="flex justify-between items-start mb-4">
+        <div className={`p-5 sm:p-6 lg:p-8 rounded-3xl ${post.type === 'emergency' ? 'bg-emergency-50/10' : ''}`}>
+          <div className="flex flex-col sm:flex-row sm:justify-between items-start gap-4 mb-4 w-full">
             <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap gap-y-2">
               <button 
                 onClick={() => navigate(-1)}
@@ -314,7 +315,7 @@ export default function PostDetail() {
                 {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
               <Link to={`/user/${post.author_id}`} className="flex items-center gap-2 hover:bg-gray-50 pr-3 p-1 rounded-full transition-all border border-transparent hover:border-gray-200 shadow-sm hover:shadow bg-white">
                 <Avatar src={post.author_profile_picture} name={post.author_name} size="w-7 h-7" />
                 <span className="text-sm font-medium text-gray-700 flex items-center">
@@ -380,6 +381,13 @@ export default function PostDetail() {
               </div>
             );
           })()}
+
+          {/* Bottom Actions Row */}
+          <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end items-center">
+            <div className="bg-white rounded-full shadow-sm border border-gray-100 hover:border-gray-200 hover:shadow transition-all">
+              <ShareMenu url={`${window.location.origin}/post/${post.id}`} text={`Check out this post: ${post.title}`} />
+            </div>
+          </div>
         </div>
       </div>
 
