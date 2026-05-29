@@ -19,6 +19,7 @@ import CreatePost from './CreatePost';
 import { useConfirm } from '../context/ConfirmContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const BASE_URL = API_URL.replace(/\/api$/, '');
 
 
 function useTabPagination(fetchUrl, id, initialLimit = 10) {
@@ -151,7 +152,26 @@ export default function CommunityDetail() {
 
   // Resource creation state
   const [showResourceForm, setShowResourceForm] = useState(false);
-  const [newResource, setNewResource] = useState({ title: '', content: '', link: '' });
+  const [newResource, setNewResource] = useState({ title: '', content: '', link: '', file: null });
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setNewResource({ ...newResource, file: e.dataTransfer.files[0] });
+    }
+  };
 
   // Edit states
   const [editingEvent, setEditingEvent] = useState(null);
@@ -439,11 +459,26 @@ export default function CommunityDetail() {
 
   const handleCreateResource = async (e) => {
     e.preventDefault();
+    if (!newResource.title.trim()) return;
+
+    if (newResource.file && newResource.file.size > 20 * 1024 * 1024) {
+      toast.error("File size exceeds the 20MB limit.");
+      return;
+    }
+
     try {
-      await axios.post(`${API_URL}/communities/${id}/resources`, newResource);
+      const formData = new FormData();
+      formData.append('title', newResource.title);
+      formData.append('content', newResource.content);
+      if (newResource.link) formData.append('link', newResource.link);
+      if (newResource.file) formData.append('file', newResource.file);
+
+      await axios.post(`${API_URL}/communities/${id}/resources`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       toast.success('Resource added!');
       setShowResourceForm(false);
-      setNewResource({ title: '', content: '', link: '' });
+      setNewResource({ title: '', content: '', link: '', file: null });
       fetchDetail();
     } catch (err) {
       toast.error('Failed to add resource');
@@ -996,8 +1031,38 @@ export default function CommunityDetail() {
                     <form onSubmit={handleCreateResource} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
                       <h3 className="font-bold text-gray-900 mb-2">Add a Resource Guide</h3>
                       <input type="text" placeholder="Resource Title (e.g., Trusted Local Pharmacies)" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" value={newResource.title} onChange={e => setNewResource({...newResource, title: e.target.value})} />
-                      <input type="url" placeholder="External Link (Optional)" className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" value={newResource.link} onChange={e => setNewResource({...newResource, link: e.target.value})} />
-                      <textarea placeholder="Resource Content or details..." required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" rows="4" value={newResource.content} onChange={e => setNewResource({...newResource, content: e.target.value})}></textarea>
+                      <input type="url" placeholder="External Link (Optional, e.g., YouTube Link)" className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" value={newResource.link} onChange={e => setNewResource({...newResource, link: e.target.value})} />
+                      <div 
+                        className={`relative overflow-hidden flex flex-col space-y-2 p-6 rounded-xl border-2 border-dashed transition-all duration-200 ${isDragging ? 'border-primary-500 bg-primary-50/50' : 'border-gray-300 bg-gray-50/50 hover:bg-gray-50'}`}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                      >
+                        <div className="flex flex-col items-center justify-center text-center space-y-2 pointer-events-none">
+                          <div className="p-3 bg-white rounded-full shadow-sm border border-gray-100">
+                            <svg className="w-6 h-6 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-700">Drag and drop your file here</p>
+                            <p className="text-xs text-gray-500 mt-1">or click to browse (Max 20MB)</p>
+                          </div>
+                          <input 
+                            type="file" 
+                            accept="image/*,video/*,.pdf" 
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                            onChange={e => setNewResource({...newResource, file: e.target.files[0]})} 
+                          />
+                          {newResource.file && (
+                            <div className="mt-3 text-xs font-semibold text-primary-700 bg-primary-100 px-3 py-1.5 rounded-lg flex items-center justify-between w-full relative z-20 pointer-events-auto">
+                              <span className="truncate">{newResource.file.name}</span>
+                              <button type="button" onClick={() => setNewResource({...newResource, file: null})} className="ml-2 hover:text-primary-900 focus:outline-none p-1">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <textarea placeholder="Resource Content or details (Optional)..." className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" rows="4" value={newResource.content} onChange={e => setNewResource({...newResource, content: e.target.value})}></textarea>
                       <button type="submit" className="btn-primary w-full py-2">Publish Resource</button>
                     </form>
                   )}
@@ -1016,7 +1081,7 @@ export default function CommunityDetail() {
                               <h3 className="font-bold text-gray-900 mb-2">Edit Resource</h3>
                               <input type="text" placeholder="Resource Title" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm" value={editingResource.title} onChange={e => setEditingResource({...editingResource, title: e.target.value})} />
                               <input type="url" placeholder="External Link (Optional)" className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm" value={editingResource.link || ''} onChange={e => setEditingResource({...editingResource, link: e.target.value})} />
-                              <textarea placeholder="Resource Content" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm" rows="3" value={editingResource.content} onChange={e => setEditingResource({...editingResource, content: e.target.value})}></textarea>
+                              <textarea placeholder="Resource Content (Optional)" className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm" rows="3" value={editingResource.content} onChange={e => setEditingResource({...editingResource, content: e.target.value})}></textarea>
                               <div className="flex space-x-2">
                                 <button type="submit" className="btn-primary flex-1 py-1.5 text-sm">Save</button>
                                 <button type="button" onClick={() => setEditingResource(null)} className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-50 transition-colors text-sm">Cancel</button>
@@ -1036,12 +1101,35 @@ export default function CommunityDetail() {
                               )}
                               <h3 className="font-bold text-gray-900 mb-2 flex items-start justify-between pr-14">
                                 {res.title}
-                                {res.link && (
+                                {res.link && (!res.file_type || res.file_type === 'link') && (
                                   <a href={res.link} target="_blank" rel="noreferrer" className="text-primary-600 hover:text-primary-800 p-1 bg-primary-50 rounded">
                                     <ExternalLink className="w-4 h-4" />
                                   </a>
                                 )}
                               </h3>
+                              {res.file_path && (
+                                <div className="mb-4 relative group/media">
+                                  {res.file_type?.startsWith('image/') && <img src={`${BASE_URL}${res.file_path}`} alt={res.title} className="rounded-lg max-h-60 w-full object-contain bg-gray-50 border border-gray-100" />}
+                                  {res.file_type?.startsWith('video/') && <video src={`${BASE_URL}${res.file_path}`} controls className="rounded-lg w-full border border-gray-100 bg-black" />}
+                                  {res.file_type === 'application/pdf' && <object data={`${BASE_URL}${res.file_path}`} type="application/pdf" className="w-full h-96 border border-gray-200 rounded-lg" />}
+                                  
+                                  <a 
+                                    href={`${BASE_URL}${res.file_path}`} 
+                                    download 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="inline-flex items-center px-3 py-1.5 mt-2 text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors border border-primary-100"
+                                  >
+                                    <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                    Download File
+                                  </a>
+                                </div>
+                              )}
+                              {res.link && (res.link.includes('youtube.com') || res.link.includes('youtu.be')) && (
+                                <div className="mb-4 aspect-video">
+                                  <iframe src={`https://www.youtube.com/embed/${res.link.split('v=')[1] || res.link.split('/').pop()}`} className="w-full h-full rounded-lg" frameBorder="0" allowFullScreen></iframe>
+                                </div>
+                              )}
                               <p className="text-sm text-gray-600 mb-4 whitespace-pre-wrap line-clamp-4">{res.content}</p>
                               <div className="text-xs text-gray-400 flex items-center justify-between border-t border-gray-100 pt-3">
                                 <span>Added by {res.creator_name}</span>

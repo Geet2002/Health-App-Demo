@@ -36,7 +36,10 @@ const storage = multer.diskStorage({
     cb(null, Date.now() + path.extname(file.originalname));
   }
 });
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 } // 20MB limit
+});
 
 const dbConfig = {
   host: process.env.DB_HOST || '127.0.0.1',
@@ -1089,18 +1092,40 @@ app.get('/api/communities/:id/members', authenticate, async (req, res) => {
   }
 });
 
-app.post('/api/communities/:id/resources', authenticate, async (req, res) => {
+app.post('/api/communities/:id/resources', authenticate, upload.single('file'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, content, link } = req.body;
+    const { title, link } = req.body;
+    const content = req.body.content || '';
     
+    // Determine file_path and file_type
+    let file_path = null;
+    let file_type = null;
+    
+    if (req.file) {
+      file_path = `/uploads/${req.file.filename}`;
+      if (req.file.mimetype.startsWith('image/')) {
+        file_type = 'image';
+      } else if (req.file.mimetype.startsWith('video/')) {
+        file_type = 'video';
+      } else if (req.file.mimetype === 'application/pdf') {
+        file_type = 'pdf';
+      } else {
+        file_type = 'other';
+      }
+    } else if (link && (link.includes('youtube.com/') || link.includes('youtu.be/'))) {
+      file_type = 'youtube';
+    } else if (link) {
+      file_type = 'link';
+    }
+
     // Check if user is an approved member
     const [memberCheck] = await pool.query(`SELECT status FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [id, req.user.id]);
     if (memberCheck.length === 0) return res.status(403).json({ error: 'Only approved members can add resources' });
 
     const [result] = await pool.query(
-      `INSERT INTO community_resources (community_id, created_by, title, content, link) VALUES (?, ?, ?, ?, ?)`,
-      [id, req.user.id, title, content, link || null]
+      `INSERT INTO community_resources (community_id, created_by, title, content, link, file_path, file_type) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, req.user.id, title, content, link || null, file_path, file_type]
     );
 
     // Notify approved community members about the new resource
@@ -1129,7 +1154,8 @@ app.post('/api/communities/:id/resources', authenticate, async (req, res) => {
 app.put('/api/communities/:id/resources/:resourceId', authenticate, async (req, res) => {
   try {
     const { id, resourceId } = req.params;
-    const { title, content, link } = req.body;
+    const { title, link } = req.body;
+    const content = req.body.content || '';
     
     const [resRows] = await pool.query('SELECT created_by FROM community_resources WHERE id = ? AND community_id = ?', [resourceId, id]);
     if (resRows.length === 0) return res.status(404).json({ error: 'Resource not found' });

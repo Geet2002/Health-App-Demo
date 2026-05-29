@@ -12,13 +12,22 @@ frontend/node_modules/
 backend/uploads/
 backend/server.log
 backend/server.log
-
+backend/check_yoga.js
 
 test_posts.js
 backend/test.js
 
 backend/add_blood_location.sql
 backend/alter_blood.js
+
+backend/check_schema.js
+backend/payload_log.txt
+backend/server.js.bak
+backend/server.log
+backend/test_api.js
+backend/test_insert.js
+backend/test.js
+check_db.js
 
 # Build Outputs
 dist/
