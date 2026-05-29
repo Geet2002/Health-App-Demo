@@ -5,6 +5,7 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Users, Lock, Unlock, Check, X, ShieldAlert, Trash2, MessageCircle, MapPin, Clock, AlertTriangle, HelpCircle, PlusCircle, Calendar, BookOpen, ExternalLink, Link as LinkIcon, Edit2, LogOut, Search, Locate, MapIcon } from 'lucide-react';
 import GoogleMap, { loadGoogleMaps } from '../components/GoogleMap';
 import LocationSelector from '../components/LocationSelector';
@@ -214,7 +215,7 @@ export default function CommunityDetail() {
     const handleEventUpdate = (data) => {
       const updatedId = data?.communityId || data;
       if (parseInt(updatedId) === parseInt(id)) {
-        if (data?.action === 'add' && data?.triggerUserId !== user?.id) {
+        if (data?.action === 'add' && parseInt(data?.triggerUserId) !== parseInt(user?.id)) {
           setHasNewEvents(true);
         } else {
           eventsPagination.fetchItems(0, false);
@@ -225,7 +226,7 @@ export default function CommunityDetail() {
     const handleResourceUpdate = (data) => {
       const updatedId = data?.communityId || data;
       if (parseInt(updatedId) === parseInt(id)) {
-        if (data?.action === 'add' && data?.triggerUserId !== user?.id) {
+        if (data?.action === 'add' && parseInt(data?.triggerUserId) !== parseInt(user?.id)) {
           setHasNewResources(true);
         } else {
           resourcesPagination.fetchItems(0, false);
@@ -236,7 +237,7 @@ export default function CommunityDetail() {
     const handleFeedUpdate = (data) => {
       const updatedId = data?.communityId || data;
       if (parseInt(updatedId) === parseInt(id)) {
-        if (data?.action === 'add' && data?.triggerUserId !== user?.id) {
+        if (data?.action === 'add' && parseInt(data?.triggerUserId) !== parseInt(user?.id)) {
           setHasNewFeed(true);
         } else {
           feedPagination.fetchItems(0, false);
@@ -282,6 +283,10 @@ export default function CommunityDetail() {
     } finally {
       setIsSavingEdit(false);
     }
+  };
+
+  const handleCreatePost = async () => {
+    feedPagination.fetchItems(0, false);
   };
 
   const handleDeletePost = async (e, postId) => {
@@ -452,6 +457,7 @@ export default function CommunityDetail() {
       setShowEventForm(false);
       setNewEvent({ title: '', description: '', event_date: '', location: '', location_lat: null, location_lng: null, use_map: false });
       fetchDetail();
+      eventsPagination.fetchItems(0, false);
     } catch (err) {
       toast.error('Failed to create event');
     }
@@ -473,13 +479,12 @@ export default function CommunityDetail() {
       if (newResource.link) formData.append('link', newResource.link);
       if (newResource.file) formData.append('file', newResource.file);
 
-      await axios.post(`${API_URL}/communities/${id}/resources`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      await axios.post(`${API_URL}/communities/${id}/resources`, formData);
       toast.success('Resource added!');
       setShowResourceForm(false);
       setNewResource({ title: '', content: '', link: '', file: null });
       fetchDetail();
+      resourcesPagination.fetchItems(0, false);
     } catch (err) {
       toast.error('Failed to add resource');
     }
@@ -498,6 +503,7 @@ export default function CommunityDetail() {
       await axios.put(`${API_URL}/communities/${id}/events/${editingEvent.id}`, editingEvent);
       toast.success('Event updated!');
       setEditingEvent(null);
+      fetchDetail();
       eventsPagination.fetchItems(0, false);
     } catch (err) {
       toast.error('Failed to update event');
@@ -517,6 +523,7 @@ export default function CommunityDetail() {
       await axios.delete(`${API_URL}/communities/${id}/events/${eventId}`);
       toast.success('Event deleted');
       fetchDetail();
+      eventsPagination.fetchItems(0, false);
     } catch (err) {
       toast.error('Failed to delete event');
     }
@@ -529,6 +536,7 @@ export default function CommunityDetail() {
       toast.success('Resource updated!');
       setEditingResource(null);
       fetchDetail();
+      resourcesPagination.fetchItems(0, false);
     } catch (err) {
       toast.error('Failed to update resource');
     }
@@ -547,6 +555,7 @@ export default function CommunityDetail() {
       await axios.delete(`${API_URL}/communities/${id}/resources/${resourceId}`);
       toast.success('Resource deleted');
       fetchDetail();
+      resourcesPagination.fetchItems(0, false);
     } catch (err) {
       toast.error('Failed to delete resource');
     }
@@ -794,18 +803,29 @@ export default function CommunityDetail() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {posts.map(post => (
-                    <PostCard 
-                      key={post.id} 
-                      post={post} 
-                      currentUser={user} 
-                      onDelete={handleDeletePost} 
-                      onEdit={(p) => setEditingPost(p)}
-                      onVote={feedPagination.fetchItems}
-                      hideCommunityName={true}
-                      isCommunityAdmin={isAdmin}
-                    />
-                  ))}
+                  <AnimatePresence>
+                    {posts.map(post => (
+                      <motion.div
+                        key={post.id}
+                        initial={Date.now() - new Date(post.created_at).getTime() < 10000 ? { opacity: 0, height: 0, y: -20 } : false}
+                        animate={{ opacity: 1, height: "auto", y: 0 }}
+                        exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                        transition={{ duration: 0.3 }}
+                        layout
+                        className="overflow-hidden"
+                      >
+                        <PostCard 
+                          post={post} 
+                          currentUser={user} 
+                          onDelete={handleDeletePost} 
+                          onEdit={(p) => setEditingPost(p)}
+                          onVote={feedPagination.fetchItems}
+                          hideCommunityName={true}
+                          isCommunityAdmin={isAdmin}
+                        />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                   {feedPagination.loadingMore && <div className="text-center py-4 text-gray-500 text-sm font-medium">Loading more posts...</div>}
                   {!feedPagination.loadingMore && feedPagination.hasMore && (
                     <div ref={feedPagination.lastElementRef} className="h-4 w-full"></div>
@@ -880,8 +900,17 @@ export default function CommunityDetail() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {events.map(event => (
-                        <div key={event.id}>
+                      <AnimatePresence>
+                        {events.map(event => (
+                          <motion.div
+                            key={event.id}
+                            initial={Date.now() - new Date(event.created_at).getTime() < 10000 ? { opacity: 0, height: 0, y: -20 } : false}
+                            animate={{ opacity: 1, height: "auto", y: 0 }}
+                            exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                            transition={{ duration: 0.3 }}
+                            layout
+                            className="overflow-hidden"
+                          >
                           {editingEvent?.id === event.id ? (
                             <form onSubmit={handleUpdateEvent} className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
                               <h3 className="font-bold text-gray-900 mb-2">Edit Event</h3>
@@ -984,8 +1013,9 @@ export default function CommunityDetail() {
                               </div>
                             </div>
                           )}
-                        </div>
-                      ))}
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
                       {eventsPagination.loadingMore && <div className="text-center py-4 text-gray-500 text-sm font-medium">Loading more events...</div>}
                       {!eventsPagination.loadingMore && eventsPagination.hasMore && (
                         <div ref={eventsPagination.lastElementRef} className="h-4 w-full"></div>
@@ -1073,9 +1103,18 @@ export default function CommunityDetail() {
                       <h3 className="mt-2 text-sm font-medium text-gray-900">No resources yet</h3>
                     </div>
                   ) : (
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      {resources.map(res => (
-                        <div key={res.id}>
+                    <div className="grid grid-cols-1 gap-6">
+                      <AnimatePresence>
+                        {resources.map(res => (
+                          <motion.div 
+                            key={res.id}
+                            initial={Date.now() - new Date(res.created_at).getTime() < 10000 ? { opacity: 0, height: 0, y: -20 } : false}
+                            animate={{ opacity: 1, height: "auto", y: 0 }}
+                            exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                            transition={{ duration: 0.3 }}
+                            layout
+                            className="overflow-hidden"
+                          >
                           {editingResource?.id === res.id ? (
                             <form onSubmit={handleUpdateResource} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
                               <h3 className="font-bold text-gray-900 mb-2">Edit Resource</h3>
@@ -1137,11 +1176,12 @@ export default function CommunityDetail() {
                               </div>
                             </div>
                           )}
-                        </div>
-                      ))}
-                      {resourcesPagination.loadingMore && <div className="col-span-1 sm:col-span-2 text-center py-4 text-gray-500 text-sm font-medium">Loading more resources...</div>}
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                      {resourcesPagination.loadingMore && <div className="col-span-1 text-center py-4 text-gray-500 text-sm font-medium">Loading more resources...</div>}
                       {!resourcesPagination.loadingMore && resourcesPagination.hasMore && (
-                        <div ref={resourcesPagination.lastElementRef} className="col-span-1 sm:col-span-2 h-4 w-full"></div>
+                        <div ref={resourcesPagination.lastElementRef} className="col-span-1 h-4 w-full"></div>
                       )}
                     </div>
                   )}

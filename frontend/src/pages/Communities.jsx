@@ -7,12 +7,18 @@ import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { CommunityCardSkeleton } from '../components/Skeletons';
 import PageHeader from '../components/PageHeader';
+import { motion } from 'framer-motion';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 const CommunityCard = ({ comm, handleQuickJoin }) => (
-  <Link to={`/communities/${comm.id}`} className="block group outline-none h-full">
-    <div className="bg-white border border-gray-100 p-6 h-full flex flex-col rounded-3xl transition-all duration-300 hover:border-primary-200 hover:shadow-xl shadow-sm hover:shadow-primary-100/60 transform hover:-translate-y-1 relative">
+  <motion.div
+    transition={{ duration: 0.2 }}
+    whileHover={{ y: -6, scale: 1.01 }}
+    className="h-full"
+  >
+    <Link to={`/communities/${comm.id}`} className="block group outline-none h-full">
+      <div className="bg-white border border-gray-100 p-6 h-full flex flex-col rounded-3xl transition-all duration-300 hover:border-primary-200 hover:shadow-xl shadow-sm hover:shadow-primary-100/60 relative">
       <div className="flex justify-between items-start mb-4">
         <div className={`p-2.5 rounded-xl ${comm.is_private ? 'bg-orange-50 text-orange-600' : 'bg-primary-50 text-primary-600'}`}>
           {comm.is_private ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
@@ -50,8 +56,9 @@ const CommunityCard = ({ comm, handleQuickJoin }) => (
           )}
         </div>
       </div>
-    </div>
-  </Link>
+      </div>
+    </Link>
+  </motion.div>
 );
 
 export default function Communities() {
@@ -150,7 +157,7 @@ export default function Communities() {
                 <p className="text-gray-400 font-medium">No communities found.</p>
               </div>
             ) : (
-              filteredCommunities.map(comm => (
+              filteredCommunities.map((comm) => (
                 <CommunityCard key={comm.id} comm={{...comm, isAdminView: true}} handleQuickJoin={handleQuickJoin} />
               ))
             )}
@@ -173,7 +180,7 @@ export default function Communities() {
               </div>
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {myComms.map(comm => (
+                {myComms.map((comm) => (
                   <CommunityCard key={comm.id} comm={comm} handleQuickJoin={handleQuickJoin} />
                 ))}
               </div>
@@ -195,7 +202,7 @@ export default function Communities() {
               </div>
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {otherComms.map(comm => (
+                {otherComms.map((comm) => (
                   <CommunityCard key={comm.id} comm={comm} handleQuickJoin={handleQuickJoin} />
                 ))}
               </div>
