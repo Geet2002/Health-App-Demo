@@ -12,6 +12,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const sharp = require('sharp');
+const xss = require('xss');
 require('dotenv').config();
 
 if (!process.env.JWT_SECRET) throw new Error("FATAL: JWT_SECRET is not defined");
@@ -31,12 +32,55 @@ const io = new Server(server, {
   }
 });
 
+// Socket Authentication Middleware
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token || (socket.handshake.query && socket.handshake.query.token);
+  if (!token) {
+    return next(new Error('Authentication error'));
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.user = decoded;
+    next();
+  } catch (err) {
+    next(new Error('Authentication error'));
+  }
+});
+
+io.on('connection', (socket) => {
+  if (socket.user) {
+    // Join personal room
+    socket.join('user_' + socket.user.id);
+    
+    // Join community rooms
+    pool.query(`SELECT community_id FROM community_members WHERE user_id = ? AND status = 'approved'`, [socket.user.id])
+      .then(([rows]) => {
+        rows.forEach(row => {
+          socket.join('community_' + row.community_id);
+        });
+      })
+      .catch(console.error);
+  }
+});
+
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(compression());
 app.use(cors({ origin: frontendUrl })); // credentials not needed for bearer tokens
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Sanitization Middleware
+const sanitizeInput = (req, res, next) => {
+  if (req.body) {
+    for (const key in req.body) {
+      if (typeof req.body[key] === 'string') {
+        req.body[key] = xss(req.body[key]);
+      }
+    }
+  }
+  next();
+};
+app.use(sanitizeInput);
 
 // Multer Storage Configuration
 const storage = multer.memoryStorage();
@@ -44,13 +88,13 @@ const upload = multer({
   storage,
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB limit
   fileFilter: (req, file, cb) => {
-    const filetypes = /jpeg|jpg|png|webp/;
+    const filetypes = /jpeg|jpg|png|webp|pdf|mp4|webm|mp3|mpeg|wav/;
     const mimetype = filetypes.test(file.mimetype);
     const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
     if (mimetype && extname) {
       return cb(null, true);
     }
-    cb(new Error("Error: File upload only supports images (jpeg, jpg, png, webp)"));
+    cb(new Error("Error: Invalid file type. Supported: Images, PDF, Video, Audio"));
   }
 });
 
@@ -66,12 +110,18 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 // Auth Middleware
 const authenticate = (req, res, next) => {
+  let token = null;
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
@@ -94,6 +144,9 @@ const isAdmin = async (req, res, next) => {
   }
 };
 
+// Serve uploads folder securely
+app.use('/uploads', authenticate, express.static(path.join(__dirname, 'uploads')));
+
 
 // ======================= NOTIFICATIONS HELPER =======================
 const createNotification = async (userId, type, content, relatedId = null) => {
@@ -102,7 +155,7 @@ const createNotification = async (userId, type, content, relatedId = null) => {
       `INSERT INTO notifications (user_id, type, content, related_id) VALUES (?, ?, ?, ?)`,
       [userId, type, content, relatedId]
     );
-    io.emit('new_notification', userId);
+    io.to('user_' + userId).emit('new_notification', userId);
   } catch (err) {
     console.error('Error creating notification:', err);
   }
@@ -117,6 +170,24 @@ const authLimiter = rateLimit({
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
+
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000,
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const postLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50,
+  message: { error: 'You are posting too fast, please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/api', globalLimiter);
 
 app.post('/api/auth/signup', authLimiter, async (req, res) => {
   try {
@@ -356,7 +427,7 @@ app.get('/api/posts', authenticate, async (req, res) => {
 });
 
 // Create Global Post
-app.post('/api/posts', authenticate, async (req, res) => {
+app.post('/api/posts', authenticate, postLimiter, async (req, res) => {
   try {
     const { title, content, type, location, community_id } = req.body;
     const author_id = req.user.id;
@@ -376,7 +447,7 @@ app.post('/api/posts', authenticate, async (req, res) => {
       for (let m of members) {
         await createNotification(m.user_id, 'new_post', `New post: ${title}`, result.insertId);
       }
-      io.emit('community_feed_updated', { communityId: finalCommunityId, action: 'add', triggerUserId: req.user.id });
+      io.to('community_' + finalCommunityId).emit('community_feed_updated', { communityId: finalCommunityId, action: 'add', triggerUserId: req.user.id });
     }
     
     // Always emit global feed update because community posts also show up in the global feed
@@ -409,7 +480,7 @@ app.put('/api/posts/:id', authenticate, async (req, res) => {
     );
 
     if (posts[0].community_id) {
-      io.emit('community_feed_updated', posts[0].community_id);
+      io.to('community_' + posts[0].community_id).emit('community_feed_updated', posts[0].community_id);
     }
     io.emit('global_feed_updated', { action: 'update', triggerUserId: req.user.id });
     io.emit('post_updated', id);
@@ -567,7 +638,7 @@ app.post('/api/comments/:id/vote', authenticate, async (req, res) => {
 
 // ======================= COMMUNITY ROUTES =======================
 
-app.post('/api/communities', authenticate, async (req, res) => {
+app.post('/api/communities', authenticate, postLimiter, async (req, res) => {
   try {
     const { name, description, is_private } = req.body;
     const author_id = req.user.id;
@@ -602,7 +673,7 @@ app.get('/api/communities', authenticate, async (req, res) => {
       (SELECT status FROM community_members cm WHERE cm.community_id = c.id AND cm.user_id = ?) as user_status
       FROM communities c
       LEFT JOIN users u ON c.created_by = u.id
-      ORDER BY c.created_at DESC
+      ORDER BY c.created_at DESC LIMIT 100
     `, [userId]);
     res.json(rows);
   } catch (error) {
@@ -611,7 +682,7 @@ app.get('/api/communities', authenticate, async (req, res) => {
   }
 });
 
-app.get('/api/communities/:id', async (req, res) => {
+app.get('/api/communities/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const [comms] = await pool.query(`
@@ -694,7 +765,7 @@ app.post('/api/communities/:id/leave', authenticate, async (req, res) => {
       [id, user_id]
     );
 
-    io.emit('community_member_updated', id);
+    io.to('community_' + id).emit('community_member_updated', id);
     res.json({ message: 'Successfully left the community' });
   } catch (error) {
     console.error(error);
@@ -728,7 +799,7 @@ app.post('/api/communities/:id/join', authenticate, async (req, res) => {
       }
     }
 
-    io.emit('community_member_updated', id);
+    io.to('community_' + id).emit('community_member_updated', id);
     res.json({ message: status === 'pending' ? 'Request sent to admins' : 'Joined successfully', status });
   } catch (error) {
     console.error(error);
@@ -755,11 +826,11 @@ app.post('/api/communities/:id/requests/:userId', authenticate, async (req, res)
       const [comms] = await pool.query(`SELECT name FROM communities WHERE id = ?`, [id]);
       await createNotification(userId, 'request_approved', `Your request to join ${comms[0].name} was approved!`, id);
 
-      io.emit('community_member_updated', id);
+      io.to('community_' + id).emit('community_member_updated', id);
       res.json({ message: 'Request approved' });
     } else {
       await pool.query(`DELETE FROM community_members WHERE community_id = ? AND user_id = ?`, [id, userId]);
-      io.emit('community_member_updated', id);
+      io.to('community_' + id).emit('community_member_updated', id);
       res.json({ message: 'Request rejected' });
     }
   } catch (error) {
@@ -784,7 +855,7 @@ app.post('/api/communities/:id/admin', authenticate, async (req, res) => {
     const [comms] = await pool.query(`SELECT name FROM communities WHERE id = ?`, [id]);
     await createNotification(targetUserId, 'made_admin', `You were made an admin of ${comms[0].name}`, id);
 
-    io.emit('community_member_updated', id);
+    io.to('community_' + id).emit('community_member_updated', id);
     res.json({ message: 'User promoted to admin' });
   } catch (error) {
     console.error(error);
@@ -814,7 +885,7 @@ app.post('/api/communities/:id/demote', authenticate, async (req, res) => {
     const [comms] = await pool.query(`SELECT name FROM communities WHERE id = ?`, [id]);
     await createNotification(targetUserId, 'system', `Your admin role was removed in ${comms[0].name}`, id);
 
-    io.emit('community_member_updated', id);
+    io.to('community_' + id).emit('community_member_updated', id);
     res.json({ message: 'Admin role removed' });
   } catch (error) {
     console.error(error);
@@ -851,7 +922,7 @@ app.delete('/api/communities/:id/members/:userId', authenticate, async (req, res
     const communityName = comms[0]?.name || 'a community';
     await createNotification(userId, 'system', `You have been removed from the community: ${communityName}`, id);
 
-    io.emit('community_member_updated', id);
+    io.to('community_' + id).emit('community_member_updated', id);
     res.json({ message: 'User removed successfully' });
   } catch (error) {
     console.error(error);
@@ -925,7 +996,7 @@ app.post('/api/communities/:id/events', authenticate, async (req, res) => {
       console.error('Error dispatching community event notifications:', notifErr);
     }
 
-    io.emit('community_event_updated', { communityId: id, action: 'add', triggerUserId: req.user.id });
+    io.to('community_' + id).emit('community_event_updated', { communityId: id, action: 'add', triggerUserId: req.user.id });
     res.json({ id: result.insertId, message: 'Event created successfully' });
   } catch (error) {
     console.error(error);
@@ -966,7 +1037,7 @@ app.put('/api/communities/:id/events/:eventId', authenticate, async (req, res) =
       [title, description, formattedDate, location, location_lat || null, location_lng || null, eventId, id]
     );
 
-    io.emit('community_event_updated', id);
+    io.to('community_' + id).emit('community_event_updated', id);
     res.json({ message: 'Event updated successfully' });
   } catch (error) {
     console.error(error);
@@ -1003,7 +1074,7 @@ app.delete('/api/communities/:id/events/:eventId', authenticate, async (req, res
       await createNotification(creatorId, 'system_delete', `An admin has deleted your event: "${eventTitle}"`);
     }
 
-    io.emit('community_event_updated', id);
+    io.to('community_' + id).emit('community_event_updated', id);
     res.json({ message: 'Event deleted successfully' });
   } catch (error) {
     console.error(error);
@@ -1019,6 +1090,14 @@ app.post('/api/events/:eventId/rsvp', authenticate, async (req, res) => {
     const [eventData] = await pool.query(`SELECT community_id FROM community_events WHERE id = ?`, [eventId]);
     if (eventData.length === 0) return res.status(404).json({ error: 'Event not found' });
     const communityId = eventData[0].community_id;
+
+    const [memberCheck] = await pool.query(`SELECT status FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [communityId, req.user.id]);
+    if (memberCheck.length === 0) {
+      const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+      if (users[0]?.is_admin !== 1) {
+        return res.status(403).json({ error: 'Only approved members can interact with this event' });
+      }
+    }
 
     if (attending) {
       await pool.query(`INSERT IGNORE INTO event_attendees (event_id, user_id) VALUES (?, ?)`, [eventId, req.user.id]);
@@ -1037,11 +1116,11 @@ app.post('/api/events/:eventId/rsvp', authenticate, async (req, res) => {
         console.error('Error dispatching RSVP notification:', notifErr);
       }
 
-      io.emit('community_event_updated', communityId);
+      io.to('community_' + communityId).emit('community_event_updated', communityId);
       res.json({ message: 'RSVP successful' });
     } else {
       await pool.query(`DELETE FROM event_attendees WHERE event_id = ? AND user_id = ?`, [eventId, req.user.id]);
-      io.emit('community_event_updated', communityId);
+      io.to('community_' + communityId).emit('community_event_updated', communityId);
       res.json({ message: 'RSVP cancelled' });
     }
   } catch (error) {
@@ -1053,6 +1132,19 @@ app.post('/api/events/:eventId/rsvp', authenticate, async (req, res) => {
 app.get('/api/events/:eventId/attendees', authenticate, async (req, res) => {
   try {
     const { eventId } = req.params;
+
+    const [eventData] = await pool.query(`SELECT community_id FROM community_events WHERE id = ?`, [eventId]);
+    if (eventData.length === 0) return res.status(404).json({ error: 'Event not found' });
+    const communityId = eventData[0].community_id;
+
+    const [memberCheck] = await pool.query(`SELECT status FROM community_members WHERE community_id = ? AND user_id = ? AND status = 'approved'`, [communityId, req.user.id]);
+    if (memberCheck.length === 0) {
+      const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+      if (users[0]?.is_admin !== 1) {
+        return res.status(403).json({ error: 'Only approved members can view attendees' });
+      }
+    }
+
     const [attendees] = await pool.query(
       `SELECT u.id, u.username, u.profile_picture, u.is_medical_professional 
        FROM users u 
@@ -1183,7 +1275,7 @@ app.post('/api/communities/:id/resources', authenticate, upload.single('file'), 
       console.error('Error dispatching community resource notifications:', notifErr);
     }
 
-    io.emit('community_resource_updated', { communityId: id, action: 'add', triggerUserId: req.user.id });
+    io.to('community_' + id).emit('community_resource_updated', { communityId: id, action: 'add', triggerUserId: req.user.id });
     res.json({ id: result.insertId, message: 'Resource added successfully' });
   } catch (error) {
     console.error(error);
@@ -1217,7 +1309,7 @@ app.put('/api/communities/:id/resources/:resourceId', authenticate, async (req, 
       [title, content, link || null, resourceId, id]
     );
 
-    io.emit('community_resource_updated', id);
+    io.to('community_' + id).emit('community_resource_updated', id);
     res.json({ message: 'Resource updated successfully' });
   } catch (error) {
     console.error(error);
@@ -1254,7 +1346,7 @@ app.delete('/api/communities/:id/resources/:resourceId', authenticate, async (re
       await createNotification(creatorId, 'system_delete', `An admin has deleted your resource: "${resourceTitle}"`);
     }
 
-    io.emit('community_resource_updated', id);
+    io.to('community_' + id).emit('community_resource_updated', id);
     res.json({ message: 'Resource deleted successfully' });
   } catch (error) {
     console.error(error);
@@ -1649,7 +1741,7 @@ app.delete('/api/posts/:id', authenticate, async (req, res) => {
     }
 
     if (posts[0].community_id) {
-      io.emit('community_feed_updated', posts[0].community_id);
+      io.to('community_' + posts[0].community_id).emit('community_feed_updated', posts[0].community_id);
     }
     res.json({ message: 'Post deleted' });
   } catch (err) {
@@ -1809,7 +1901,7 @@ app.get('/api/health-shares/:id', authenticate, async (req, res) => {
   }
 });
 
-app.post('/api/health-shares', authenticate, upload.single('media'), async (req, res) => {
+app.post('/api/health-shares', authenticate, postLimiter, upload.single('media'), async (req, res) => {
   try {
     const { content } = req.body;
     const author_id = req.user.id;
@@ -2070,7 +2162,7 @@ app.get('/api/admin/stats', authenticate, isAdmin, async (req, res) => {
 
 app.get('/api/admin/users', authenticate, isAdmin, async (req, res) => {
   try {
-    const [users] = await pool.query('SELECT id, username, email, is_admin, created_at, profile_picture, is_medical_professional FROM users ORDER BY created_at DESC');
+    const [users] = await pool.query('SELECT id, username, email, is_admin, created_at, profile_picture, is_medical_professional FROM users ORDER BY created_at DESC LIMIT 100');
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -2126,7 +2218,7 @@ app.get('/api/admin/communities', authenticate, isAdmin, async (req, res) => {
       SELECT c.*, u.username as creator_name
       FROM communities c
       LEFT JOIN users u ON c.created_by = u.id
-      ORDER BY c.created_at DESC
+      ORDER BY c.created_at DESC LIMIT 100
     `);
     res.json(communities);
   } catch (err) {
@@ -2149,7 +2241,7 @@ app.get('/api/admin/blood-requests', authenticate, isAdmin, async (req, res) => 
       SELECT b.*, u.username as requester_name
       FROM blood_requests b
       LEFT JOIN users u ON b.user_id = u.id
-      ORDER BY b.created_at DESC
+      ORDER BY b.created_at DESC LIMIT 100
     `);
     res.json(requests);
   } catch (err) {
@@ -2172,7 +2264,7 @@ app.get('/api/admin/medical-requests', authenticate, isAdmin, async (req, res) =
       SELECT id, username, email, profile_picture, created_at 
       FROM users 
       WHERE medical_verification_status = 'pending'
-      ORDER BY created_at DESC
+      ORDER BY created_at DESC LIMIT 100
     `);
     res.json(requests);
   } catch (err) {
@@ -2204,7 +2296,7 @@ app.get('/api/admin/medical-verified-users', authenticate, isAdmin, async (req, 
       SELECT id, username, email, profile_picture, created_at 
       FROM users 
       WHERE medical_verification_status = 'approved'
-      ORDER BY created_at DESC
+      ORDER BY created_at DESC LIMIT 100
     `);
     res.json(users);
   } catch (err) {
@@ -2227,7 +2319,7 @@ app.get('/api/admin/health-shares', authenticate, isAdmin, async (req, res) => {
       SELECT h.*, u.username as author_name 
       FROM health_shares h 
       LEFT JOIN users u ON h.author_id = u.id 
-      ORDER BY h.created_at DESC
+      ORDER BY h.created_at DESC LIMIT 100
     `);
     res.json(shares);
   } catch (err) {

@@ -176,7 +176,7 @@ export default function HealthMoments() {
     setEditingShareId(share.id);
     setEditContent(share.content || '');
     if (share.media_url) {
-      setEditMediaPreview(`${API_URL.replace('/api', '')}${share.media_url}`);
+      setEditMediaPreview(`${API_URL.replace('/api', '')}${share.media_url}?token=${localStorage.getItem('token')}`);
     } else {
       setEditMediaPreview(null);
     }
@@ -312,7 +312,7 @@ export default function HealthMoments() {
 
   const renderMedia = (share) => {
     if (!share.media_url) return null;
-    const url = `${API_URL.replace('/api', '')}${share.media_url}`;
+    const url = `${API_URL.replace('/api', '')}${share.media_url}?token=${localStorage.getItem('token')}`;
 
     if (share.media_type === 'image') {
       return <img src={url} alt="Post media" className="w-full h-auto max-h-[600px] object-cover" loading="lazy" />;
@@ -628,7 +628,7 @@ export default function HealthMoments() {
                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-xs shrink-0 overflow-hidden">
                             <Link to={`/user/${comment.author_id}`} className="w-full h-full flex items-center justify-center hover:bg-gray-300 transition-colors">
                               {comment.author_profile_picture ? (
-                                <img src={comment.author_profile_picture.startsWith('http') ? comment.author_profile_picture : `http://localhost:5001${comment.author_profile_picture}`} alt="" className="w-full h-full object-cover" />
+                                <img src={comment.author_profile_picture.startsWith('http') ? comment.author_profile_picture : `${API_URL.replace('/api', '')}${comment.author_profile_picture}?token=${localStorage.getItem('token')}`} alt="" className="w-full h-full object-cover" />
                               ) : (
                                 comment.author_name?.[0]?.toUpperCase()
                               )}

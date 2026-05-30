@@ -13,4 +13,7 @@ const getSocketUrl = () => {
 
 export const socket = io(getSocketUrl(), {
   autoConnect: true,
+  auth: (cb) => {
+    cb({ token: localStorage.getItem('token') });
+  }
 });

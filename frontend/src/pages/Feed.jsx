@@ -294,7 +294,7 @@ export default function Feed() {
               <Link to="/profile" className="flex-shrink-0">
                 <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden border border-gray-150">
                   {user.profile_picture ? (
-                    <img src={user.profile_picture.startsWith('http') ? user.profile_picture : `${API_URL.replace('/api', '')}${user.profile_picture}`} alt="Me" className="w-full h-full object-cover" />
+                    <img src={user.profile_picture.startsWith('http') ? user.profile_picture : `${API_URL.replace('/api', '')}${user.profile_picture}?token=${localStorage.getItem('token')}`} alt="Me" className="w-full h-full object-cover" />
                   ) : (
                     <User className="w-5 h-5 text-primary-600" />
                   )}
@@ -402,7 +402,7 @@ export default function Feed() {
                   <Link to="/profile" className="relative group flex-shrink-0">
                     <div className="w-14 h-14 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden border border-primary-500 shadow-md group-hover:opacity-90 transition-opacity">
                       {user.profile_picture ? (
-                        <img src={user.profile_picture.startsWith('http') ? user.profile_picture : `${API_URL.replace('/api', '')}${user.profile_picture}`} alt="Me" className="w-full h-full object-cover" />
+                        <img src={user.profile_picture.startsWith('http') ? user.profile_picture : `${API_URL.replace('/api', '')}${user.profile_picture}?token=${localStorage.getItem('token')}`} alt="Me" className="w-full h-full object-cover" />
                       ) : (
                         <User className="w-6 h-6 text-primary-600" />
                       )}

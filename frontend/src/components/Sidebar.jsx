@@ -116,7 +116,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
             <Link to="/profile" className="shrink-0">
                <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden ring-2 ring-primary-500 ring-offset-2 shadow-sm">
                   {user.profile_picture ? (
-                    <img src={user.profile_picture.startsWith('http') ? user.profile_picture : `${API_URL.replace('/api', '')}${user.profile_picture}`} alt="Profile" className="w-full h-full object-cover" />
+                    <img src={user.profile_picture.startsWith('http') ? user.profile_picture : `${API_URL.replace('/api', '')}${user.profile_picture}?token=${localStorage.getItem('token')}`} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
                     <User className="w-5 h-5 text-primary-600" />
                   )}
@@ -205,7 +205,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
               <Link to="/profile" className="flex items-center space-x-2 overflow-hidden group flex-1 hover:bg-gray-50 p-1.5 rounded-xl transition-colors">
                 <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0 overflow-hidden ring-2 ring-primary-500 ring-offset-2 shadow-sm group-hover:ring-primary-600 transition-all">
                   {user.profile_picture ? (
-                    <img src={user.profile_picture.startsWith('http') ? user.profile_picture : `${API_URL.replace('/api', '')}${user.profile_picture}`} alt="Profile" className="w-full h-full object-cover" />
+                    <img src={user.profile_picture.startsWith('http') ? user.profile_picture : `${API_URL.replace('/api', '')}${user.profile_picture}?token=${localStorage.getItem('token')}`} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
                     <User className="w-4 h-4 text-primary-600" />
                   )}

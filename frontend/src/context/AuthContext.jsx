@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
+import { socket } from '../socket';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -39,24 +40,31 @@ export function AuthProvider({ children }) {
     const res = await axios.post(`${API_URL}/auth/login`, { username, password });
     localStorage.setItem('token', res.data.token);
     setUser(res.data.user);
+    socket.disconnect();
+    socket.connect();
   };
 
   const signup = async (username, email, password) => {
     const res = await axios.post(`${API_URL}/auth/signup`, { username, email, password });
     localStorage.setItem('token', res.data.token);
     setUser(res.data.user);
+    socket.disconnect();
+    socket.connect();
   };
 
   const googleLogin = async (token) => {
     const res = await axios.post(`${API_URL}/auth/google`, { token });
     localStorage.setItem('token', res.data.token);
     setUser(res.data.user);
+    socket.disconnect();
+    socket.connect();
   };
 
   const logout = async () => {
     await axios.post(`${API_URL}/auth/logout`);
     localStorage.removeItem('token');
     setUser(null);
+    socket.disconnect();
   };
 
   return (

@@ -4,7 +4,11 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 export default function Avatar({ src, name, size = 'w-10 h-10', className = '', alt = '' }) {
   const base = API_URL.replace('/api', '');
-  const imgSrc = src ? (src.startsWith('http') ? src : `${base}${src}`) : null;
+  let imgSrc = src ? (src.startsWith('http') ? src : `${base}${src}`) : null;
+  const token = localStorage.getItem('token');
+  if (imgSrc && !src.startsWith('http') && token) {
+    imgSrc += `?token=${token}`;
+  }
   const initials = (name || 'U').split(' ').map(s => s[0]).join('').slice(0,2).toUpperCase();
 
   return (
