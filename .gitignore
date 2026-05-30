@@ -13,12 +13,14 @@ backend/uploads/
 backend/server.log
 backend/server.log
 backend/check_yoga.js
+backend/schema.txt
 
 test_posts.js
 backend/test.js
 
 backend/add_blood_location.sql
 backend/alter_blood.js
+backend/get_schema.js
 
 backend/check_schema.js
 backend/payload_log.txt
