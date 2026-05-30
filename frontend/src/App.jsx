@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Toaster, ToastBar, toast } from 'react-hot-toast';
@@ -8,21 +8,22 @@ import { ConfirmProvider } from './context/ConfirmContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import Sidebar from './components/Sidebar';
-import Feed from './pages/Feed';
-import Landing from './pages/Landing';
-import CreatePost from './pages/CreatePost';
-import PostDetail from './pages/PostDetail';
-import Auth from './pages/Auth';
-import Communities from './pages/Communities';
-import CreateCommunity from './pages/CreateCommunity';
-import CommunityDetail from './pages/CommunityDetail';
-import Notifications from './pages/Notifications';
-import BloodDonation from './pages/BloodDonation';
-import BloodRequestDetails from './pages/BloodRequestDetails';
-import HealthMoments from './pages/HealthMoments';
-import Profile from './pages/Profile';
-import UserPublicProfile from './pages/UserPublicProfile';
-import AdminPanel from './pages/AdminPanel';
+
+const Feed = lazy(() => import('./pages/Feed'));
+const Landing = lazy(() => import('./pages/Landing'));
+const CreatePost = lazy(() => import('./pages/CreatePost'));
+const PostDetail = lazy(() => import('./pages/PostDetail'));
+const Auth = lazy(() => import('./pages/Auth'));
+const Communities = lazy(() => import('./pages/Communities'));
+const CreateCommunity = lazy(() => import('./pages/CreateCommunity'));
+const CommunityDetail = lazy(() => import('./pages/CommunityDetail'));
+const Notifications = lazy(() => import('./pages/Notifications'));
+const BloodDonation = lazy(() => import('./pages/BloodDonation'));
+const BloodRequestDetails = lazy(() => import('./pages/BloodRequestDetails'));
+const HealthMoments = lazy(() => import('./pages/HealthMoments'));
+const Profile = lazy(() => import('./pages/Profile'));
+const UserPublicProfile = lazy(() => import('./pages/UserPublicProfile'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -60,6 +61,11 @@ function AppContent() {
         onScroll={handleScroll}
         className={`flex-1 overflow-y-auto w-full relative ${!hideSidebar ? 'px-4 sm:px-6 lg:px-8 py-8 pb-24 sm:pb-8' : ''}`}
       >
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-full w-full py-20">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+          </div>
+        }>
         {isFullPage ? (
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -88,6 +94,7 @@ function AppContent() {
             </Routes>
           </div>
         )}
+        </Suspense>
         
         {/* Back To Top Button */}
         {!isFullPage && (

@@ -8,7 +8,16 @@ const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
 const { OAuth2Client } = require('google-auth-library');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const compression = require('compression');
+const sharp = require('sharp');
 require('dotenv').config();
+
+if (!process.env.JWT_SECRET) throw new Error("FATAL: JWT_SECRET is not defined");
+if (!process.env.DB_PASSWORD && process.env.NODE_ENV === 'production') throw new Error("FATAL: DB_PASSWORD is not defined");
+
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -17,39 +26,43 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: frontendUrl,
     methods: ['GET', 'POST', 'PUT', 'DELETE']
   }
 });
 
-app.use(cors({ origin: 'http://localhost:5173' })); // credentials not needed for bearer tokens
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+app.use(compression());
+app.use(cors({ origin: frontendUrl })); // credentials not needed for bearer tokens
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Multer Storage Configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
-});
+const storage = multer.memoryStorage();
 const upload = multer({ 
   storage,
-  limits: { fileSize: 20 * 1024 * 1024 } // 20MB limit
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB limit
+  fileFilter: (req, file, cb) => {
+    const filetypes = /jpeg|jpg|png|webp/;
+    const mimetype = filetypes.test(file.mimetype);
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    if (mimetype && extname) {
+      return cb(null, true);
+    }
+    cb(new Error("Error: File upload only supports images (jpeg, jpg, png, webp)"));
+  }
 });
 
 const dbConfig = {
   host: process.env.DB_HOST || '127.0.0.1',
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
+  password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'healthcare_db'
 };
 
 let pool = mysql.createPool(dbConfig);
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Auth Middleware
 const authenticate = (req, res, next) => {
@@ -97,7 +110,15 @@ const createNotification = async (userId, type, content, relatedId = null) => {
 
 // ======================= AUTH ROUTES =======================
 
-app.post('/api/auth/signup', async (req, res) => {
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 requests per `window` (here, per 15 minutes)
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes' },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+app.post('/api/auth/signup', authLimiter, async (req, res) => {
   try {
     const { username, email, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
@@ -119,7 +140,7 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
     const [users] = await pool.query(`SELECT * FROM users WHERE username = ? OR (email = ? AND email IS NOT NULL)`, [username, username]);
@@ -227,7 +248,12 @@ app.put('/api/users/profile', authenticate, upload.single('profile_picture'), as
     const finalDesc = description || null;
 
     if (req.file) {
-      const profile_picture = '/uploads/' + req.file.filename;
+      const filename = Date.now() + '.webp';
+      await sharp(req.file.buffer)
+        .resize(500, 500, { fit: 'cover' })
+        .webp({ quality: 80 })
+        .toFile(path.join(__dirname, 'uploads', filename));
+      const profile_picture = '/uploads/' + filename;
       await pool.query(
         `UPDATE users SET birthdate = ?, description = ?, gender = ?, profile_picture = ? WHERE id = ?`,
         [finalBirthdate, finalDesc, finalGender, profile_picture, req.user.id]
@@ -307,12 +333,11 @@ app.get('/api/posts', authenticate, async (req, res) => {
 
     const [rows] = await pool.query(`
       SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional, c.name as community_name,
-      (SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) as comment_count,
-      (SELECT COUNT(*) FROM post_votes pv WHERE pv.post_id = p.id) as vote_count,
-      (SELECT vote_type FROM post_votes pv WHERE pv.post_id = p.id AND pv.user_id = ?) as user_vote
+      pv.vote_type as user_vote
       FROM posts p
       LEFT JOIN users u ON p.author_id = u.id
       LEFT JOIN communities c ON p.community_id = c.id
+      LEFT JOIN post_votes pv ON pv.post_id = p.id AND pv.user_id = ?
       ${whereClause}
       ORDER BY 
         p.type = 'emergency' DESC, 
@@ -398,29 +423,39 @@ app.put('/api/posts/:id', authenticate, async (req, res) => {
 
 // Toggle Post Vote (Like)
 app.post('/api/posts/:id/vote', authenticate, async (req, res) => {
+  const connection = await pool.getConnection();
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    await connection.beginTransaction();
 
     // Check if vote exists
-    const [existing] = await pool.query('SELECT id FROM post_votes WHERE post_id = ? AND user_id = ?', [id, userId]);
+    const [existing] = await connection.query('SELECT id FROM post_votes WHERE post_id = ? AND user_id = ?', [id, userId]);
 
+    let responseData;
     if (existing.length > 0) {
       // Remove vote (Unlike)
-      await pool.query('DELETE FROM post_votes WHERE post_id = ? AND user_id = ?', [id, userId]);
-      const [countRows] = await pool.query('SELECT COUNT(*) as count FROM post_votes WHERE post_id = ?', [id]);
-      io.emit('post_updated', id);
-      return res.json({ message: 'Unliked', user_vote: null, vote_count: countRows[0].count });
+      await connection.query('DELETE FROM post_votes WHERE post_id = ? AND user_id = ?', [id, userId]);
+      await connection.query('UPDATE posts SET vote_count = vote_count - 1 WHERE id = ?', [id]);
+      const [postRow] = await connection.query('SELECT vote_count FROM posts WHERE id = ?', [id]);
+      responseData = { message: 'Unliked', user_vote: null, vote_count: postRow[0].vote_count };
     } else {
       // Add vote (Like)
-      await pool.query('INSERT INTO post_votes (post_id, user_id, vote_type) VALUES (?, ?, \'like\')', [id, userId]);
-      const [countRows] = await pool.query('SELECT COUNT(*) as count FROM post_votes WHERE post_id = ?', [id]);
-      io.emit('post_updated', id);
-      return res.json({ message: 'Liked', user_vote: 'like', vote_count: countRows[0].count });
+      await connection.query('INSERT INTO post_votes (post_id, user_id, vote_type) VALUES (?, ?, \'like\')', [id, userId]);
+      await connection.query('UPDATE posts SET vote_count = vote_count + 1 WHERE id = ?', [id]);
+      const [postRow] = await connection.query('SELECT vote_count FROM posts WHERE id = ?', [id]);
+      responseData = { message: 'Liked', user_vote: 'like', vote_count: postRow[0].vote_count };
     }
+
+    await connection.commit();
+    io.emit('post_updated', id);
+    return res.json(responseData);
   } catch (error) {
+    await connection.rollback();
     console.error(error);
-    res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: 'Server error' });
+  } finally {
+    connection.release();
   }
 });
 
@@ -432,13 +467,12 @@ app.get('/api/posts/:id', authenticate, async (req, res) => {
     
     const [posts] = await pool.query(`
       SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional, c.name as community_name,
-      (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count,
-      (SELECT COUNT(*) FROM post_votes pv WHERE pv.post_id = p.id AND pv.vote_type = 'like') as upvotes,
-      (SELECT COUNT(*) FROM post_votes pv WHERE pv.post_id = p.id) as vote_count,
-      (SELECT vote_type FROM post_votes pv WHERE pv.post_id = p.id AND pv.user_id = ?) as user_vote
+      p.vote_count as upvotes,
+      pv.vote_type as user_vote
       FROM posts p 
       LEFT JOIN users u ON p.author_id = u.id 
       LEFT JOIN communities c ON p.community_id = c.id
+      LEFT JOIN post_votes pv ON pv.post_id = p.id AND pv.user_id = ?
       WHERE p.id = ?
     `, [userId, id]);
 
@@ -460,20 +494,27 @@ app.get('/api/posts/:id', authenticate, async (req, res) => {
 
 // Add comment
 app.post('/api/posts/:id/comments', authenticate, async (req, res) => {
+  const connection = await pool.getConnection();
   try {
     const { id } = req.params;
     const { content, parent_id } = req.body;
     const author_id = req.user.id;
+    await connection.beginTransaction();
 
-    const [result] = await pool.query(
+    const [result] = await connection.query(
       `INSERT INTO comments (post_id, author_id, content, parent_id) VALUES (?, ?, ?, ?)`,
       [id, author_id, content, parent_id || null]
     );
+    await connection.query('UPDATE posts SET comment_count = comment_count + 1 WHERE id = ?', [id]);
+    await connection.commit();
     io.emit('post_updated', id);
     res.json({ id: result.insertId, post_id: id, author_id, content, parent_id: parent_id || null });
   } catch (error) {
+    await connection.rollback();
     console.error(error);
     res.status(500).json({ error: 'Server error' });
+  } finally {
+    connection.release();
   }
 });
 
@@ -616,12 +657,11 @@ app.get('/api/communities/:id/posts', authenticate, async (req, res) => {
 
     const [rows] = await pool.query(`
       SELECT p.*, u.username as author_name, u.profile_picture as author_profile_picture, u.is_medical_professional, c.name as community_name,
-      (SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) as comment_count,
-      (SELECT COUNT(*) FROM post_votes pv WHERE pv.post_id = p.id) as vote_count,
-      (SELECT vote_type FROM post_votes pv WHERE pv.post_id = p.id AND pv.user_id = ?) as user_vote
+      pv.vote_type as user_vote
       FROM posts p
       LEFT JOIN users u ON p.author_id = u.id
       LEFT JOIN communities c ON p.community_id = c.id
+      LEFT JOIN post_votes pv ON pv.post_id = p.id AND pv.user_id = ?
       WHERE ${whereClause}
       ORDER BY 
         p.type = 'emergency' DESC, 
@@ -726,7 +766,7 @@ app.post('/api/communities/:id/requests/:userId', authenticate, async (req, res)
     console.error('------- APPROVE ERROR -------');
     console.error(error);
     console.error('------- END APPROVE ERROR -------');
-    res.status(500).json({ error: error.message || 'Server error', stack: error.stack });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -1444,7 +1484,7 @@ app.post('/api/blood-requests/:id/comments', authenticate, async (req, res) => {
 app.post('/api/blood-requests/:id/offers', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const { phone, email, message } = req.body;
+    const { contact_phone_at_offer, contact_email_at_offer, message } = req.body;
     const donor_id = req.user.id;
 
     // Don't allow requester to offer to themselves
@@ -1453,8 +1493,8 @@ app.post('/api/blood-requests/:id/offers', authenticate, async (req, res) => {
     if (requests[0].user_id === donor_id) return res.status(400).json({ error: 'Cannot offer donation to your own request' });
 
     const [result] = await pool.query(
-      `INSERT INTO blood_donation_offers (request_id, donor_id, phone, email, message) VALUES (?, ?, ?, ?, ?)`,
-      [id, donor_id, phone, email, message]
+      `INSERT INTO blood_donation_offers (request_id, donor_id, contact_phone_at_offer, contact_email_at_offer, message) VALUES (?, ?, ?, ?, ?)`,
+      [id, donor_id, contact_phone_at_offer, contact_email_at_offer, message]
     );
 
     // Notify requester
@@ -1619,30 +1659,44 @@ app.delete('/api/posts/:id', authenticate, async (req, res) => {
 });
 
 app.delete('/api/comments/:id', authenticate, async (req, res) => {
+  const connection = await pool.getConnection();
   try {
+    await connection.beginTransaction();
     const { id } = req.params;
-    const [comments] = await pool.query('SELECT c.author_id, c.post_id, p.community_id FROM comments c JOIN posts p ON c.post_id = p.id WHERE c.id = ?', [id]);
-    if (comments.length === 0) return res.status(404).json({ error: 'Not found' });
+    const [comments] = await connection.query('SELECT c.author_id, c.post_id, p.community_id FROM comments c JOIN posts p ON c.post_id = p.id WHERE c.id = ?', [id]);
+    if (comments.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Not found' });
+    }
     
     let isAuthorized = comments[0].author_id === req.user.id;
     if (!isAuthorized) {
-      const [users] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+      const [users] = await connection.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
       if (users[0]?.is_admin === 1) isAuthorized = true;
       
       if (!isAuthorized && comments[0].community_id) {
-        const [adminCheck] = await pool.query('SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND role = "admin"', [comments[0].community_id, req.user.id]);
+        const [adminCheck] = await connection.query('SELECT role FROM community_members WHERE community_id = ? AND user_id = ? AND role = "admin"', [comments[0].community_id, req.user.id]);
         if (adminCheck.length > 0) isAuthorized = true;
       }
     }
 
-    if (!isAuthorized) return res.status(403).json({ error: 'Unauthorized' });
+    if (!isAuthorized) {
+      await connection.rollback();
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
 
-    await pool.query('DELETE FROM comments WHERE id = ?', [id]);
+    await connection.query('DELETE FROM comments WHERE id = ?', [id]);
+    await connection.query('UPDATE posts SET comment_count = comment_count - 1 WHERE id = ?', [comments[0].post_id]);
+    await connection.commit();
+    
     io.emit('post_updated', comments[0].post_id);
     io.emit('comment_updated', id);
     res.json({ message: 'Comment deleted' });
   } catch (err) {
+    await connection.rollback();
     res.status(500).json({ error: 'Server error' });
+  } finally {
+    connection.release();
   }
 });
 
@@ -1828,40 +1882,47 @@ app.put('/api/health-shares/:id', authenticate, upload.single('media'), async (r
   }
 });
 app.post('/api/health-shares/:id/vote', authenticate, async (req, res) => {
+  const connection = await pool.getConnection();
   try {
     const { id } = req.params;
     const { vote_type } = req.body; // 'like' or 'dislike' or null
     const userId = req.user.id;
 
-    const [existing] = await pool.query('SELECT vote_type FROM health_share_votes WHERE share_id = ? AND user_id = ?', [id, userId]);
+    await connection.beginTransaction();
+    const [existing] = await connection.query('SELECT vote_type FROM health_share_votes WHERE share_id = ? AND user_id = ?', [id, userId]);
 
     if (!vote_type) {
       if (existing.length > 0) {
-        await pool.query('DELETE FROM health_share_votes WHERE share_id = ? AND user_id = ?', [id, userId]);
+        await connection.query('DELETE FROM health_share_votes WHERE share_id = ? AND user_id = ?', [id, userId]);
         const oldVote = existing[0].vote_type;
-        if (oldVote === 'like') await pool.query('UPDATE health_shares SET likes_count = likes_count - 1 WHERE id = ?', [id]);
-        if (oldVote === 'dislike') await pool.query('UPDATE health_shares SET dislikes_count = dislikes_count - 1 WHERE id = ?', [id]);
+        if (oldVote === 'like') await connection.query('UPDATE health_shares SET likes_count = likes_count - 1 WHERE id = ?', [id]);
+        if (oldVote === 'dislike') await connection.query('UPDATE health_shares SET dislikes_count = dislikes_count - 1 WHERE id = ?', [id]);
       }
+      await connection.commit();
       io.emit('health_share_updated', id);
       return res.json({ message: 'Vote removed' });
     }
 
     if (existing.length > 0) {
       if (existing[0].vote_type !== vote_type) {
-        await pool.query('UPDATE health_share_votes SET vote_type = ? WHERE share_id = ? AND user_id = ?', [vote_type, id, userId]);
-        if (vote_type === 'like') await pool.query('UPDATE health_shares SET likes_count = likes_count + 1, dislikes_count = dislikes_count - 1 WHERE id = ?', [id]);
-        else await pool.query('UPDATE health_shares SET dislikes_count = dislikes_count + 1, likes_count = likes_count - 1 WHERE id = ?', [id]);
+        await connection.query('UPDATE health_share_votes SET vote_type = ? WHERE share_id = ? AND user_id = ?', [vote_type, id, userId]);
+        if (vote_type === 'like') await connection.query('UPDATE health_shares SET likes_count = likes_count + 1, dislikes_count = dislikes_count - 1 WHERE id = ?', [id]);
+        else await connection.query('UPDATE health_shares SET dislikes_count = dislikes_count + 1, likes_count = likes_count - 1 WHERE id = ?', [id]);
       }
     } else {
-      await pool.query('INSERT INTO health_share_votes (share_id, user_id, vote_type) VALUES (?, ?, ?)', [id, userId, vote_type]);
-      if (vote_type === 'like') await pool.query('UPDATE health_shares SET likes_count = likes_count + 1 WHERE id = ?', [id]);
-      else await pool.query('UPDATE health_shares SET dislikes_count = dislikes_count + 1 WHERE id = ?', [id]);
+      await connection.query('INSERT INTO health_share_votes (share_id, user_id, vote_type) VALUES (?, ?, ?)', [id, userId, vote_type]);
+      if (vote_type === 'like') await connection.query('UPDATE health_shares SET likes_count = likes_count + 1 WHERE id = ?', [id]);
+      else await connection.query('UPDATE health_shares SET dislikes_count = dislikes_count + 1 WHERE id = ?', [id]);
     }
+    await connection.commit();
     io.emit('health_share_updated', id);
     res.json({ message: 'Vote recorded' });
   } catch (err) {
+    await connection.rollback();
     console.error(err);
     res.status(500).json({ error: 'Server error' });
+  } finally {
+    connection.release();
   }
 });
 

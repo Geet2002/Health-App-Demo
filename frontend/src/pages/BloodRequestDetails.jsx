@@ -26,7 +26,7 @@ export default function BloodRequestDetails() {
   const [loading, setLoading] = useState(true);
   
   const [newComment, setNewComment] = useState('');
-  const [offerForm, setOfferForm] = useState({ phone: '', email: '', message: '' });
+  const [offerForm, setOfferForm] = useState({ contact_phone_at_offer: '', contact_email_at_offer: '', message: '' });
   const [showOfferForm, setShowOfferForm] = useState(false);
   const [submittingOffer, setSubmittingOffer] = useState(false);
   
@@ -164,7 +164,7 @@ export default function BloodRequestDetails() {
     setSubmittingOffer(true);
     try {
       await axios.post(`${API_URL}/blood-requests/${id}/offers`, offerForm);
-      setOfferForm({ phone: '', email: '', message: '' });
+      setOfferForm({ contact_phone_at_offer: '', contact_email_at_offer: '', message: '' });
       setShowOfferForm(false);
       toast.success('Your donation offer has been sent to the requester!');
       fetchRequestDetails();
@@ -455,8 +455,8 @@ export default function BloodRequestDetails() {
                   <input
                     type="tel"
                     required
-                    value={offerForm.phone}
-                    onChange={e => setOfferForm({...offerForm, phone: e.target.value})}
+                    value={offerForm.contact_phone_at_offer}
+                    onChange={e => setOfferForm({...offerForm, contact_phone_at_offer: e.target.value})}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
                     placeholder="+91 00000 00000"
                   />
@@ -468,8 +468,8 @@ export default function BloodRequestDetails() {
                   <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
                     type="email"
-                    value={offerForm.email}
-                    onChange={e => setOfferForm({...offerForm, email: e.target.value})}
+                    value={offerForm.contact_email_at_offer}
+                    onChange={e => setOfferForm({...offerForm, contact_email_at_offer: e.target.value})}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
                     placeholder="you@example.com"
                   />
@@ -533,11 +533,11 @@ export default function BloodRequestDetails() {
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100">
                   <div className="flex items-center text-gray-700">
                     <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                    <a href={`tel:${offer.phone}`} className="hover:text-red-600">{offer.phone}</a>
+                    <a href={`tel:${offer.contact_phone_at_offer}`} className="hover:text-red-600">{offer.contact_phone_at_offer}</a>
                   </div>
                   <div className="flex items-center text-gray-700">
                     <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                    <a href={`mailto:${offer.email}`} className="hover:text-red-600">{offer.email}</a>
+                    <a href={`mailto:${offer.contact_email_at_offer}`} className="hover:text-red-600">{offer.contact_email_at_offer}</a>
                   </div>
                 </div>
                 {offer.message && (
