@@ -363,12 +363,12 @@ export default function PostDetail() {
 
             return (
               <div className="mt-4 space-y-3">
-                <div className={`inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold border w-full sm:w-auto ${post.type === 'emergency' ? 'bg-red-50/50 text-red-700 border-red-100' : 'bg-gray-50 text-gray-700 border-gray-100'}`}>
-                  <MapPin className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
-                  <span className="truncate">Location: {locText}</span>
+                <div className={`flex items-start px-4 py-2.5 rounded-xl text-sm font-semibold border w-full ${post.type === 'emergency' ? 'bg-red-50/50 text-red-700 border-red-100' : 'bg-gray-50 text-gray-700 border-gray-100'}`}>
+                  <MapPin className="w-4 h-4 sm:w-5 sm:h-5 mr-2 mt-0.5 flex-shrink-0" />
+                  <span className="break-words" style={{ wordBreak: 'break-word' }}>Location: {locText}</span>
                 </div>
                 {locPos && (
-                  <div className="h-64 sm:h-72 w-full rounded-2xl overflow-hidden border border-gray-200 relative z-0 shadow-inner">
+                  <div className="h-56 sm:h-64 w-full rounded-2xl overflow-hidden border border-gray-200 relative z-0 shadow-inner">
                     <GoogleMap 
                       center={locPos} 
                       zoom={15} 
@@ -383,7 +383,7 @@ export default function PostDetail() {
           })()}
 
           {/* Bottom Actions Row */}
-          <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end items-center">
+          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end items-center -mb-2 sm:-mb-3 lg:-mb-4">
             <div className="bg-white rounded-full shadow-sm border border-gray-100 hover:border-gray-200 hover:shadow transition-all">
               <ShareMenu url={`${window.location.origin}/post/${post.id}`} text={`Check out this post: ${post.title}`} />
             </div>

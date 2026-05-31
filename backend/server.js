@@ -13,6 +13,7 @@ const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const sharp = require('sharp');
 const xss = require('xss');
+const fs = require('fs');
 require('dotenv').config();
 
 if (!process.env.JWT_SECRET) throw new Error("FATAL: JWT_SECRET is not defined");
@@ -1235,7 +1236,9 @@ app.post('/api/communities/:id/resources', authenticate, upload.single('file'), 
     let file_type = null;
     
     if (req.file) {
-      file_path = `/uploads/${req.file.filename}`;
+      const filename = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(req.file.originalname);
+      await fs.promises.writeFile(path.join(__dirname, 'uploads', filename), req.file.buffer);
+      file_path = `/uploads/${filename}`;
       if (req.file.mimetype.startsWith('image/')) {
         file_type = 'image';
       } else if (req.file.mimetype.startsWith('video/')) {
@@ -1910,7 +1913,9 @@ app.post('/api/health-shares', authenticate, postLimiter, upload.single('media')
     let media_type = null;
 
     if (req.file) {
-      media_url = '/uploads/' + req.file.filename;
+      const filename = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(req.file.originalname);
+      await fs.promises.writeFile(path.join(__dirname, 'uploads', filename), req.file.buffer);
+      media_url = '/uploads/' + filename;
       if (req.file.mimetype.startsWith('image/')) media_type = 'image';
       else if (req.file.mimetype.startsWith('video/')) media_type = 'video';
       else if (req.file.mimetype.startsWith('audio/')) media_type = 'audio';

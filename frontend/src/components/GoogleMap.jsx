@@ -119,12 +119,18 @@ export default function GoogleMap({
     return () => { cancelled = true; };
   }, [apiKey]);
 
+  // Extract stable primitive values to prevent infinite re-renders from object literals
+  const centerLat = center ? toLatLng(center).lat : null;
+  const centerLng = center ? toLatLng(center).lng : null;
+  const markerLat = markerPosition ? toLatLng(markerPosition).lat : null;
+  const markerLng = markerPosition ? toLatLng(markerPosition).lng : null;
+
   // Recenter map and update zoom when center or zoom props change or map finishes loading
   useEffect(() => {
-    if (!mapRef.current || !center || loading) return;
-    mapRef.current.panTo(toLatLng(center));
+    if (!mapRef.current || centerLat === null || centerLng === null || loading) return;
+    mapRef.current.panTo({ lat: centerLat, lng: centerLng });
     mapRef.current.setZoom(zoom);
-  }, [center, zoom, loading]);
+  }, [centerLat, centerLng, zoom, loading]);
 
   // Update marker when markerPosition prop changes or map finishes loading
   useEffect(() => {
@@ -137,13 +143,13 @@ export default function GoogleMap({
     }
 
     // Add new marker
-    if (markerPosition) {
+    if (markerLat !== null && markerLng !== null) {
       try {
         const pin = new window.google.maps.marker.PinElement();
         pin.element.style.animation = 'marker-drop 0.4s ease-out forwards';
         
         markerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
-          position: toLatLng(markerPosition),
+          position: { lat: markerLat, lng: markerLng },
           map: mapRef.current,
           content: pin.element,
           title: "Selected Location"
@@ -151,13 +157,13 @@ export default function GoogleMap({
       } catch (err) {
         console.warn("AdvancedMarkerElement failed, falling back to Marker:", err);
         markerRef.current = new window.google.maps.Marker({
-          position: toLatLng(markerPosition),
+          position: { lat: markerLat, lng: markerLng },
           map: mapRef.current,
           title: "Selected Location"
         });
       }
     }
-  }, [markerPosition, loading]);
+  }, [markerLat, markerLng, loading]);
 
   if (error) {
     return (
