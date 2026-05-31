@@ -62,7 +62,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50 animate-fade-in-down">
+    <div className="min-h-[100dvh] flex bg-white lg:bg-gray-50 animate-fade-in-down">
       {/* Left Panel — Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-green-600 via-emerald-600 to-teal-700 flex-col justify-between p-12 relative overflow-hidden">
         {/* Background decoration */}
@@ -123,10 +123,10 @@ export default function Auth() {
       </div>
 
       {/* Right Panel — Form */}
-      <div className="flex-1 flex flex-col justify-center px-6 sm:px-10 lg:px-12 py-12">
+      <div className="flex-1 flex flex-col justify-start lg:justify-center px-5 sm:px-10 lg:px-12 pt-8 pb-12 sm:py-12 bg-white lg:rounded-l-3xl lg:shadow-2xl overflow-y-auto">
         {/* Mobile back button + logo */}
-        <div className="lg:hidden flex items-center justify-between mb-10">
-          <Link to="/" viewTransition className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">
+        <div className="lg:hidden flex items-center justify-between mb-8">
+          <Link to="/" viewTransition className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium bg-gray-50/80 px-3 py-1.5 rounded-xl">
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
           </Link>
@@ -140,21 +140,21 @@ export default function Auth() {
 
         <div className="max-w-md w-full mx-auto">
           {/* Tab Switcher */}
-          <div className="bg-gray-100 p-1 rounded-2xl flex mb-6 sm:mb-8">
+          <div className="bg-gray-100 p-1.5 rounded-2xl flex mb-8">
             <button
               onClick={() => switchTo(true)}
-              className={`flex-1 py-2.5 sm:py-3 rounded-xl text-sm font-bold transition-all ${isLogin
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+              className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${isLogin
+                  ? 'bg-white text-gray-900 shadow-sm scale-100'
+                  : 'text-gray-500 hover:text-gray-700 scale-95 hover:scale-100'
                 }`}
             >
               Sign In
             </button>
             <button
               onClick={() => switchTo(false)}
-              className={`flex-1 py-2.5 sm:py-3 rounded-xl text-sm font-bold transition-all ${!isLogin
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+              className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${!isLogin
+                  ? 'bg-white text-gray-900 shadow-sm scale-100'
+                  : 'text-gray-500 hover:text-gray-700 scale-95 hover:scale-100'
                 }`}
             >
               Create Account
@@ -201,7 +201,7 @@ export default function Auth() {
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-sm"
+                    className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-base sm:text-sm"
                   />
                 </div>
               </div>
@@ -218,7 +218,7 @@ export default function Auth() {
                 placeholder={isLogin ? 'Enter your username or email' : 'Choose a username'}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-sm"
+                className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-base sm:text-sm"
               />
             </div>
             <div className="pb-2">
@@ -232,7 +232,7 @@ export default function Auth() {
                   placeholder={isLogin ? 'Enter your password' : 'Create a strong password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-4 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-sm"
+                  className="w-full pl-4 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all text-gray-900 placeholder-gray-400 text-base sm:text-sm"
                 />
                 <button
                   type="button"
@@ -263,7 +263,7 @@ export default function Auth() {
                 <div className="w-full border-t border-gray-300"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
+                <span className="px-2 bg-white text-gray-500">Or continue with</span>
               </div>
             </div>
             
