@@ -138,7 +138,7 @@ export default function Auth() {
           </div>
         </div>
 
-        <div className="max-w-md w-full mx-auto">
+        <div className="max-w-md w-full mx-auto min-h-[650px] flex flex-col">
           {/* Tab Switcher */}
           <div className="bg-gray-100 p-1.5 rounded-2xl flex mb-8">
             <button
@@ -210,7 +210,7 @@ export default function Auth() {
             <div className="pb-5">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 {isLogin ? 'Username or Email' : 'Username'}
-                <span className={`text-xs text-gray-400 ml-2 font-normal transition-opacity duration-300 delay-100 ${!isLogin ? 'opacity-100' : 'opacity-0'}`}>(Case-sensitive)</span>
+
               </label>
               <input
                 required

@@ -513,9 +513,9 @@ export default function Feed() {
                     </div>
                     <h4 className="text-sm font-bold text-gray-900 mt-1 truncate group-hover:text-red-600 transition-colors">{post.title}</h4>
                     {post.location && (
-                      <span className="text-[11px] text-gray-500 flex items-center mt-1">
-                        <MapPin className="w-3 h-3 mr-1 text-red-400" />
-                        {post.location}
+                      <span className="text-[11px] text-gray-500 flex items-center mt-1 truncate">
+                        <MapPin className="w-3 h-3 mr-1 text-red-400 shrink-0" />
+                        <span className="truncate">{post.location.includes('||') ? post.location.split('||')[0] : post.location}</span>
                       </span>
                     )}
                   </Link>
