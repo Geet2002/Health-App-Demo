@@ -229,7 +229,7 @@ export default function PostDetail() {
       await axios.delete(`${API_URL}/posts/${id}`);
       toast.success('Post deleted successfully');
       navigate('/');
-    } catch (err) { toast.error('Error deleting post'); }
+    } catch (err) { console.error(err); toast.error('Error deleting post'); }
   };
 
   const handleDeleteComment = async (commentId) => {
@@ -247,7 +247,7 @@ export default function PostDetail() {
       setComments(comments.filter(c => c.id !== commentId && c.parent_id !== commentId));
       toast.success('Comment deleted successfully');
       fetchPostDetails(); // refetch to clean up deeply nested children
-    } catch (err) { toast.error('Error deleting comment'); }
+    } catch (err) { console.error(err); toast.error('Error deleting comment'); }
   };
 
   const handleVote = async (commentId, type) => {
@@ -261,6 +261,17 @@ export default function PostDetail() {
       fetchPostDetails(); // easy way to perfectly sync counts
     } catch (err) {
       console.error('Error voting:', err);
+    }
+  };
+
+  const handlePostVote = async () => {
+    if (!user) { toast.success('Please login to upvote'); return; }
+    try {
+      const res = await axios.post(`${API_URL}/posts/${post.id}/vote`);
+      setPost({ ...post, vote_count: res.data.vote_count, user_vote: res.data.user_vote });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to record vote");
     }
   };
 
@@ -383,7 +394,18 @@ export default function PostDetail() {
           })()}
 
           {/* Bottom Actions Row */}
-          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end items-center -mb-2 sm:-mb-3 lg:-mb-4">
+          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end items-center space-x-3 -mb-2 sm:-mb-3 lg:-mb-4">
+            <button 
+              onClick={handlePostVote}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-bold transition-all border shadow-sm hover:shadow ${
+                (post.user_vote === 'like' || post.user_vote === 'upvote') 
+                  ? 'text-primary-600 bg-primary-50 border-primary-100' 
+                  : 'text-gray-600 hover:text-gray-900 bg-white border-gray-100 hover:bg-gray-50'
+              }`}
+            >
+              <ThumbsUp className={`w-4 h-4 ${(post.user_vote === 'like' || post.user_vote === 'upvote') ? 'fill-current' : ''}`} />
+              <span>{post.vote_count || 0}</span>
+            </button>
             <div className="bg-white rounded-full shadow-sm border border-gray-100 hover:border-gray-200 hover:shadow transition-all">
               <ShareMenu url={`${window.location.origin}/post/${post.id}`} text={`Check out this post: ${post.title}`} />
             </div>

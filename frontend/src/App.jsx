@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import { Toaster, ToastBar, toast } from 'react-hot-toast';
 import { X, CheckCircle2, XCircle, AlertCircle, ArrowUp } from 'lucide-react';
@@ -59,7 +59,7 @@ function AppContent() {
       <main 
         ref={mainRef}
         onScroll={handleScroll}
-        className={`flex-1 overflow-y-auto w-full relative ${!hideSidebar ? 'px-4 sm:px-6 lg:px-8 py-8 pb-24 sm:pb-8' : ''}`}
+        className={`flex-1 overflow-y-auto [scrollbar-gutter:stable] w-full relative ${!hideSidebar ? 'px-4 sm:px-6 lg:px-8 py-8 pb-24 sm:pb-8' : ''}`}
       >
         <Suspense fallback={null}>
         {isFullPage ? (
@@ -87,6 +87,7 @@ function AppContent() {
               
               <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
               <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
         )}

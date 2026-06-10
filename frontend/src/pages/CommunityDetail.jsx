@@ -1448,7 +1448,7 @@ export default function CommunityDetail() {
                           <Link 
                             to={`/user/${member.id}`} 
                             onClick={() => setSelectedEvent(null)}
-                            className="text-xs font-bold text-gray-800 hover:text-primary-600 transition-colors truncate block flex items-center"
+                            className="text-xs font-bold text-gray-800 hover:text-primary-600 transition-colors truncate flex items-center"
                           >
                             {member.username}
                             <MedicalBadge isMedicalProfessional={member.is_medical_professional} className="w-3.5 h-3.5 ml-1 shrink-0" />

@@ -169,7 +169,7 @@ export default function Profile() {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-6 md:gap-10 md:items-start">
-        <div className="w-full md:w-5/12 lg:w-4/12 shrink-0 md:sticky md:top-24">
+        <div className="w-full md:w-5/12 lg:w-4/12 shrink-0">
         
         {/* Invisible spacer to align with right column's h3 heading */}
         <h3 className="text-xs font-bold text-transparent uppercase tracking-wider mb-2 ml-2 hidden md:block select-none" aria-hidden="true">

@@ -412,7 +412,6 @@ app.get('/api/posts', authenticate, async (req, res) => {
       LEFT JOIN post_votes pv ON pv.post_id = p.id AND pv.user_id = ?
       ${whereClause}
       ORDER BY 
-        p.type = 'emergency' DESC, 
         p.created_at DESC
       LIMIT ? OFFSET ?
     `, [userId, ...queryParams, limit + 1, offset]);
@@ -736,7 +735,6 @@ app.get('/api/communities/:id/posts', authenticate, async (req, res) => {
       LEFT JOIN post_votes pv ON pv.post_id = p.id AND pv.user_id = ?
       WHERE ${whereClause}
       ORDER BY 
-        p.type = 'emergency' DESC, 
         p.created_at DESC
       LIMIT ? OFFSET ?
     `, queryParams);

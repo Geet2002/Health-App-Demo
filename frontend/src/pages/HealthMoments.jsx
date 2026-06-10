@@ -375,9 +375,9 @@ export default function HealthMoments() {
                   <button type="button" onClick={clearMedia} className="absolute top-2 right-2 p-1 bg-gray-900/50 text-white rounded-full hover:bg-gray-900 transition">
                     <X className="w-4 h-4" />
                   </button>
-                  { (mediaFile?.type?.startsWith('image/') || (!mediaFile && editingShare?.media_type === 'image')) ? (
+                  { (mediaFile?.type?.startsWith('image/')) ? (
                     <img src={mediaPreview} alt="Preview" className="max-h-64 object-contain" />
-                  ) : (mediaFile?.type?.startsWith('video/') || (!mediaFile && editingShare?.media_type === 'video')) ? (
+                  ) : (mediaFile?.type?.startsWith('video/')) ? (
                     <video src={mediaPreview} className="max-h-64 object-contain" />
                   ) : (
                     <div className="p-4 flex items-center text-primary-600 font-medium">

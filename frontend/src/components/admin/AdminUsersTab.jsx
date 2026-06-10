@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Trash2, Shield, User as UserIcon, Search } from 'lucide-react';
+import { Trash2, Shield, ShieldOff, User as UserIcon, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -61,6 +61,23 @@ export default function AdminUsersTab() {
       setUsers(users.map(u => u.id === id ? { ...u, is_admin: 1 } : u));
     } catch (err) {
       toast.error('Failed to promote user');
+    }
+  };
+
+  const handleUnverify = async (id) => {
+    const isConfirmed = await confirm({
+      title: 'Remove Verification?',
+      message: 'Are you sure you want to remove this user\'s medical verification status?',
+      confirmText: 'Remove Verification',
+      type: 'warning'
+    });
+    if (!isConfirmed) return;
+    try {
+      await axios.put(`${API_URL}/admin/users/${id}/unverify-medical`);
+      toast.success('Medical verification removed');
+      setUsers(users.map(u => u.id === id ? { ...u, is_medical_professional: 0, medical_verification_status: 'none' } : u));
+    } catch (err) {
+      toast.error('Failed to remove verification');
     }
   };
 
@@ -139,6 +156,15 @@ export default function AdminUsersTab() {
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex justify-end items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {u.is_medical_professional === 1 && (
+                        <button 
+                          onClick={() => handleUnverify(u.id)}
+                          className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-transparent hover:border-orange-200"
+                          title="Remove Medical Verification"
+                        >
+                          <ShieldOff className="w-4 h-4" />
+                        </button>
+                      )}
                       {!u.is_admin && (
                         <button 
                           onClick={() => handlePromote(u.id)}
