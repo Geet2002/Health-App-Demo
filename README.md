@@ -93,7 +93,6 @@ Follow these instructions to get a copy of the project up and running on your lo
    - Database credentials (`DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME`)
    - JWT Secret (`JWT_SECRET`)
    - Google Cloud Credentials (Path to `service-account.json`)
-   - OpenAI API Key (`OPENAI_API_KEY`)
    - Port configurations
 4. Start the development server (runs with nodemon):
    ```bash
